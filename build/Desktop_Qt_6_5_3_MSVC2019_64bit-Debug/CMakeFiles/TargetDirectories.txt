@@ -1,0 +1,8 @@
+D:/Qt/lostground/game_xxl/build/Desktop_Qt_6_5_3_MSVC2019_64bit-Debug/CMakeFiles/game.dir
+D:/Qt/lostground/game_xxl/build/Desktop_Qt_6_5_3_MSVC2019_64bit-Debug/CMakeFiles/edit_cache.dir
+D:/Qt/lostground/game_xxl/build/Desktop_Qt_6_5_3_MSVC2019_64bit-Debug/CMakeFiles/rebuild_cache.dir
+D:/Qt/lostground/game_xxl/build/Desktop_Qt_6_5_3_MSVC2019_64bit-Debug/CMakeFiles/list_install_components.dir
+D:/Qt/lostground/game_xxl/build/Desktop_Qt_6_5_3_MSVC2019_64bit-Debug/CMakeFiles/install.dir
+D:/Qt/lostground/game_xxl/build/Desktop_Qt_6_5_3_MSVC2019_64bit-Debug/CMakeFiles/install/local.dir
+D:/Qt/lostground/game_xxl/build/Desktop_Qt_6_5_3_MSVC2019_64bit-Debug/CMakeFiles/game_autogen_timestamp_deps.dir
+D:/Qt/lostground/game_xxl/build/Desktop_Qt_6_5_3_MSVC2019_64bit-Debug/CMakeFiles/game_autogen.dir
