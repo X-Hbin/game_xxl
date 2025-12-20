@@ -4,6 +4,7 @@
 #include <QPalette>
 
 #include "mode_1.h"
+#include "mode_3.h"
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -72,8 +73,8 @@ bool MainWindow::openDB()
     db.setHostName("127.0.0.1");   // 本地
     db.setPort(3306);
     db.setDatabaseName("game");    // 你的库名
-    db.setUserName("root");        // 改成你的账号
-    db.setPassword("62545743hxb");      // 改成你的密码
+    db.setUserName("bank");        // 改成你的账号
+    db.setPassword("210507377Qq@");      // 改成你的密码
 
 
     if (!db.open()) {
@@ -165,7 +166,8 @@ void MainWindow::onStartGame(const QString &mode)
     // 清理旧页面
     if (m_gameBoard) { delete m_gameBoard; m_gameBoard = nullptr; }
     if (m_mode1Page) { stack->removeWidget(m_mode1Page); delete m_mode1Page; m_mode1Page = nullptr; }
-    if (m_mode2Page) { stack->removeWidget(m_mode2Page); delete m_mode2Page; m_mode2Page = nullptr; } // 新增清理
+    if (m_mode2Page) { stack->removeWidget(m_mode2Page); delete m_mode2Page; m_mode2Page = nullptr; }
+    if (m_mode3Page) { stack->removeWidget(m_mode3Page); delete m_mode3Page; m_mode3Page = nullptr; } // 新增清理
 
     m_gameBoard = new GameBoard(this);
     m_gameBoard->initNoThree(); // 初始化逻辑通用
@@ -191,7 +193,22 @@ void MainWindow::onStartGame(const QString &mode)
         stack->addWidget(m_mode2Page);
         stack->setCurrentWidget(m_mode2Page);
     }
+    else if (mode == "变身") { // 新增变身模式入口
+        // 绿色系背景
+        this->setStyleSheet(
+            "background: qradialgradient(cx:0.5 cy:0.5 radius:1.4,"
+            "fx:0.5 fy:0.5,"
+            "stop:0 #0a2e1f,"
+            "stop:0.5 #052615,"
+            "stop:1 #000000);");
+
+        m_mode3Page = new Mode_3(m_gameBoard, m_currentUser, this);
+        connect(m_mode3Page, &Mode_3::gameFinished, this, &MainWindow::onGameFinished);
+        stack->addWidget(m_mode3Page);
+        stack->setCurrentWidget(m_mode3Page);
+    }
 }
+
 void MainWindow::onGameFinished()
 {
     /* 换回背景图 */
@@ -218,5 +235,10 @@ void MainWindow::onGameFinished()
         stack->removeWidget(m_mode2Page);
         m_mode2Page->deleteLater();
         m_mode2Page = nullptr;
+    }
+    if (m_mode3Page) { // 新增：清理第三种模式
+        stack->removeWidget(m_mode3Page);
+        m_mode3Page->deleteLater();
+        m_mode3Page = nullptr;
     }
 }
