@@ -63,16 +63,6 @@ void Menu::on_btnSettings_clicked()
 
 
 
-
-
-
-
-
-
-
-
-
-
 /* 工厂：生成模式选择页 */
 QWidget *Menu::createModeSelectPage()
 {
@@ -92,7 +82,7 @@ QWidget *Menu::createModeSelectPage()
 
     // 三按钮  宽度固定 220 px
     modeGroup = new QButtonGroup(page);
-    const QStringList modes = {"闪电", "旋风", "未知"};
+    const QStringList modes = {"闪电", "旋风", "变身"};  // ← 这里改为"变身"
     for (int i = 0; i < modes.size(); ++i) {
         QPushButton *btn = new QPushButton(modes[i], page);
         btn->setFixedSize(220, 54);              // 关键：变窄
