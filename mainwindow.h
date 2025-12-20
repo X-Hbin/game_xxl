@@ -7,15 +7,14 @@
 #include <QtSql/QSqlError>
 #include <QMessageBox>
 
-
 #include <QStackedWidget>
 #include "menu.h"
-
 
 #include "gameboard.h"
 
 #include "mode_2.h"
 class Mode_1;   // 前向声明
+class Mode_3;   // 新增：第三种模式的前向声明
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -47,6 +46,7 @@ private:
     GameBoard *m_gameBoard = nullptr;
     Mode_1 *m_mode1Page = nullptr; // 修改：改为成员变量方便管理
     Mode_2 *m_mode2Page = nullptr;
+    Mode_3 *m_mode3Page = nullptr; // 新增：第三种模式页面
 
     QString m_currentUser; // 【新增】记录当前登录用户名
 };
