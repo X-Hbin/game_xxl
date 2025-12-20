@@ -1,3 +1,4 @@
+// menu.h
 #ifndef MENU_H
 #define MENU_H
 
@@ -7,6 +8,9 @@
 #include <QVBoxLayout>
 #include <QButtonGroup>
 
+// 前向声明
+class MainWindow;
+
 namespace Ui {
 class Menu;
 }
@@ -14,6 +18,7 @@ class Menu;
 class Menu : public QWidget
 {
     Q_OBJECT
+
 public:
     explicit Menu(QWidget *parent = nullptr);
     ~Menu();
@@ -23,15 +28,10 @@ private slots:
     void onModeSelected(QAbstractButton *btn); // 模式选中
 
     void on_btnOnline_clicked();
-
-    void on_btnSkill_clicked();
-
+    void on_btnSkill_clicked();           // 左侧技能选择按钮
     void on_btnRank_clicked();
-
     void on_btnRule_clicked();
-
     void on_btnSettings_clicked();
-
 
 signals:
     void startGameRequested(const QString &mode);   // 携带模式名
