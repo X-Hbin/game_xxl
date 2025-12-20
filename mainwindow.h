@@ -11,6 +11,8 @@
 #include "menu.h"
 
 #include "gameboard.h"
+#include "skilltree.h"          // 新增
+#include "skilltreepage.h"      // 新增
 
 #include "mode_2.h"
 class Mode_1;   // 前向声明
@@ -27,6 +29,7 @@ class MainWindow : public QMainWindow
 public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
+    void switchToSkillTreePage();
 
 private slots:
     void on_pushButtonLogin_clicked();
@@ -34,7 +37,10 @@ private slots:
     void onStartGame(const QString &mode);
 
     // 新增：处理游戏结束返回菜单
-    void onGameFinished();
+    void onGameFinished(bool isNormalEnd = false);
+
+    // 新增：处理技能树页面返回
+    void onSkillTreeBack();
 
 private:
     Ui::MainWindow *ui;
@@ -48,6 +54,11 @@ private:
     Mode_2 *m_mode2Page = nullptr;
     Mode_3 *m_mode3Page = nullptr; // 新增：第三种模式页面
 
+    // 新增：技能树相关
+    SkillTree *m_skillTree = nullptr;
+    SkillTreePage *m_skillTreePage = nullptr;
+
     QString m_currentUser; // 【新增】记录当前登录用户名
 };
+
 #endif // MAINWINDOW_H
