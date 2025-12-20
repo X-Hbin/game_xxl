@@ -15,6 +15,7 @@
 
 #include <QStack>          // 【新增】栈
 #include "gameboard.h"     // 确保包含 GameBoard 定义以使用 Grid 类型
+#include "skilltree.h"
 class GameBoard;
 class QGridLayout;
 
@@ -37,9 +38,14 @@ public:
 
     // 【新增】重写事件过滤器，让 Label 能响应点击
     bool eventFilter(QObject *watched, QEvent *event) override;
+    void setSkillTree(SkillTree* skillTree)
+    {
+        m_skillTree = skillTree;
+        resetSkills();
+    }
 
 signals:
-    void gameFinished(); // 游戏结束信号
+    void gameFinished(bool isNormalEnd = false);
 
 private slots:
     void rebuildGrid();
@@ -65,6 +71,7 @@ private:
     QGridLayout           *m_gridLayout;
     QVector<QPushButton*>  m_cells;
     QSequentialAnimationGroup *m_dropGroup;
+    bool m_ultimateBurstActive = false;
 
     // 交互逻辑
     void handleCellClick(int r, int c);
@@ -133,6 +140,21 @@ private:
     void stopHint();
     // 辅助：寻找一个可消除的移动 (返回 r1,c1, r2,c2)
     bool findValidMove(int &r1, int &c1, int &r2, int &c2);
+
+    SkillTree* m_skillTree = nullptr;
+    // 【新增】技能管理器
+    class SkillManager* m_skillManager = nullptr;
+
+    // 【新增】技能激活状态
+    bool m_scoreDoubleActive = false;
+    bool m_colorUnifyActive = false;
+    QTimer* m_skillEffectTimer = nullptr;
+
+    // 【新增】技能相关函数
+    void resetSkills();  // 重置技能状态
+    void onSkillEffectTimeout();  // 技能效果结束
+    void showSkillEndHint(const QString& message);
+    void showTempMessage(const QString& message, const QColor& color);
 };
 
 #endif // MODE_1_H
