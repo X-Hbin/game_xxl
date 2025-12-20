@@ -11,6 +11,7 @@
 #include <QLabel>
 #include <QSet>
 #include "gameboard.h"
+#include "skilltree.h"
 
 class QGridLayout;
 
@@ -32,9 +33,14 @@ public:
 
     // 事件过滤器：用于点击交互
     bool eventFilter(QObject *watched, QEvent *event) override;
+    // 设置技能树
+    void setSkillTree(SkillTree* skillTree) {
+        m_skillTree = skillTree;
+        resetSkills();
+    }
 
 signals:
-    void gameFinished();
+    void gameFinished(bool isNormalEnd = false);
 
 private slots:
     void rebuildGrid();
@@ -51,6 +57,7 @@ private:
     QGridLayout *m_gridLayout;
     QVector<QPushButton*> m_cells;
     QSequentialAnimationGroup *m_dropGroup = nullptr;
+    bool m_ultimateBurstActive = false;
 
     // === 变身模式特有变量 ===
     int m_currentAnimal = -1;        // 当前随机生成的小动物类型 (0-5)
@@ -106,6 +113,22 @@ private:
     bool findValidMove(int &outR, int &outC); // 查找可消除的点击位置
     void showHint(int r, int c);              // 高亮提示位置
     void stopHint();
+
+    // 新增：技能树引用
+    SkillTree* m_skillTree = nullptr;
+    // 【新增】技能管理器
+    class SkillManager* m_skillManager = nullptr;
+
+    // 【新增】技能激活状态
+    bool m_scoreDoubleActive = false;
+    bool m_colorUnifyActive = false;
+    QTimer* m_skillEffectTimer = nullptr;
+
+    // 【新增】技能相关函数
+    void resetSkills();  // 重置技能状态
+    void onSkillEffectTimeout();  // 技能效果结束
+    void showSkillEndHint(const QString& message);
+    void showTempMessage(const QString& message, const QColor& color);
 };
 
 #endif // MODE_3_H
