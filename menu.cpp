@@ -2,7 +2,7 @@
 #include "ui_menu.h"
 #include <QDebug>
 #include <QMessageBox>
-
+#include "mainwindow.h"
 
 Menu::Menu(QWidget *parent)
     : QWidget(parent)
@@ -40,7 +40,14 @@ void Menu::on_btnOnline_clicked()
 /* 左侧【技能选择】被点击 */
 void Menu::on_btnSkill_clicked()
 {
-
+    // 获取主窗口指针
+    QWidget *mainWindow = this->window();
+    MainWindow *mainWin = qobject_cast<MainWindow*>(mainWindow);
+    if (mainWin) {
+        // 调用主窗口的切换到技能树页面方法
+        // 需要在MainWindow中添加一个公共方法
+        mainWin->switchToSkillTreePage();
+    }
 }
 
 /* 左侧【排行榜】被点击 */
@@ -156,5 +163,3 @@ void Menu::onModeSelected(QAbstractButton *btn)
     // 简单打印调试
     qDebug() << "当前选中模式：" << btn->text();
 }
-
-
