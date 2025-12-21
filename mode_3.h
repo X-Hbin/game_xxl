@@ -58,6 +58,7 @@ private:
     QVector<QPushButton*> m_cells;
     QSequentialAnimationGroup *m_dropGroup = nullptr;
     bool m_ultimateBurstActive = false;
+    QDialog* m_skillDialog = nullptr;
 
     // === 变身模式特有变量 ===
     int m_currentAnimal = -1;        // 当前随机生成的小动物类型 (0-5)
