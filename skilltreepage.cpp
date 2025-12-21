@@ -4,39 +4,195 @@
 #include <QPainter>
 #include <QStyleOption>
 #include <QMessageBox>
+#include <QMouseEvent>
 
-void SkillTreePage::SkillTreeContainer::paintEvent(QPaintEvent* event) {
+              void SkillTreePage::SkillTreeContainer::paintEvent(QPaintEvent* event) {
     QWidget::paintEvent(event);
 
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
 
-    // 设置连线样式
-    QPen pen(QColor(255, 157, 224,180)); // 粉色
-    pen.setWidth(4);
-    painter.setPen(pen);
+    // 清空之前的矩形记录
+    skillRects.clear();
+    equipRects.clear();
+    unequipRects.clear();
 
-    // 使用硬编码的相对坐标绘制连线
-    // 行消除 -> 时间延长
-    painter.drawLine(410, 65, 250, 180);
+    // 绘制技能树连线
+    painter.setPen(QPen(QColor(255, 157, 224, 180), 4));
 
-    // 行消除 -> 彩虹炸弹
-    painter.drawLine(410, 65, 570, 180);
+    // 绘制所有父子关系的连线
+    for (auto it = skillStates.begin(); it != skillStates.end(); ++it) {
+        SkillNode* childSkill = it.value();
 
-    // 时间延长 -> 得分翻倍
-    painter.drawLine(250, 180, 250, 300);
+        if (!childSkill->parentId.isEmpty() && skillStates.contains(childSkill->parentId)) {
+            // 计算父节点和子节点的位置
+            SkillNode* parentSkill = skillStates[childSkill->parentId];
 
-    // 时间延长 -> 时间冻结
-    painter.drawLine(250, 180, 90, 300);
+            // 根据技能ID确定位置（这里使用固定布局，但可以根据需要调整）
+            int parentX = 0, parentY = 0, childX = 0, childY = 0;
 
-    // 彩虹炸弹 -> 十字消除
-    painter.drawLine(570, 180, 410, 300);
+            // 定义技能位置（根据原来的布局）
+            if (parentSkill->id == "row_clear") { parentX = 300; parentY = 50; }
+            else if (parentSkill->id == "time_extend") { parentX = 150; parentY = 150; }
+            else if (parentSkill->id == "rainbow_bomb") { parentX = 450; parentY = 150; }
+            else if (parentSkill->id == "cross_clear") { parentX = 300; parentY = 250; }
+            else if (parentSkill->id == "score_double") { parentX = 150; parentY = 250; }
+            else if (parentSkill->id == "color_unify") { parentX = 450; parentY = 250; }
+            else if (parentSkill->id == "time_freeze") { parentX = 50; parentY = 250; }
+            else if (parentSkill->id == "ultimate_burst") { parentX = 450; parentY = 350; }
 
-    // 彩虹炸弹 -> 颜色统一
-    painter.drawLine(570, 180, 570, 300);
+            if (childSkill->id == "time_extend") { childX = 150; childY = 150; }
+            else if (childSkill->id == "rainbow_bomb") { childX = 450; childY = 150; }
+            else if (childSkill->id == "cross_clear") { childX = 300; childY = 250; }
+            else if (childSkill->id == "score_double") { childX = 150; childY = 250; }
+            else if (childSkill->id == "color_unify") { childX = 450; childY = 250; }
+            else if (childSkill->id == "time_freeze") { childX = 50; childY = 250; }
+            else if (childSkill->id == "ultimate_burst") { childX = 450; childY = 350; }
 
-    // 颜色统一 -> 终极爆发
-    painter.drawLine(570, 300, 570, 430);
+            // 绘制连线
+            painter.drawLine(parentX + 40, parentY + 15, childX + 40, childY + 15);
+        }
+    }
+
+    // 绘制所有技能节点
+    for (auto it = skillStates.begin(); it != skillStates.end(); ++it) {
+        QString skillId = it.key();
+        SkillNode* skill = it.value();
+
+        // 根据技能ID确定位置
+        int x = 0, y = 0;
+
+        if (skillId == "row_clear") { x = 300; y = 50; }
+        else if (skillId == "time_extend") { x = 150; y = 150; }
+        else if (skillId == "rainbow_bomb") { x = 450; y = 150; }
+        else if (skillId == "cross_clear") { x = 300; y = 250; }
+        else if (skillId == "score_double") { x = 150; y = 250; }
+        else if (skillId == "color_unify") { x = 450; y = 250; }
+        else if (skillId == "time_freeze") { x = 50; y = 250; }
+        else if (skillId == "ultimate_burst") { x = 450; y = 350; }
+
+        drawSkillNode(painter, skillId, x, y);
+    }
+}
+
+void SkillTreePage::SkillTreeContainer::drawSkillNode(QPainter& painter, const QString& skillId, int x, int y) {
+    if (!skillStates.contains(skillId)) return;
+
+    SkillNode* skill = skillStates[skillId];
+
+    // 绘制技能按钮
+    QRect skillRect(x, y, 80, 30);
+    skillRects[skillId] = skillRect;
+
+    // 设置按钮颜色
+    QColor buttonColor;
+    if (skill->equipped) {
+        buttonColor = QColor(76, 175, 80);  // 已装备 - 绿色
+    } else if (skill->unlocked) {
+        buttonColor = QColor(255, 157, 224);  // 已解锁 - 粉色
+    } else if (skillTree->getSkillPoints() >= skill->cost &&
+               skillTree->checkPrerequisites(skillId)) {
+        buttonColor = QColor(33, 150, 243);  // 可解锁 - 蓝色
+    } else {
+        buttonColor = QColor(117, 117, 117);  // 不可解锁 - 灰色
+    }
+
+    // 绘制圆角矩形
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(buttonColor);
+    painter.drawRoundedRect(skillRect, 8, 8);
+
+    // 绘制文字
+    painter.setPen(QColor(255, 255, 255));
+    painter.setFont(QFont("Microsoft YaHei", 10, QFont::Bold));
+    painter.drawText(skillRect, Qt::AlignCenter, skill->name);
+
+    // 绘制消耗
+    painter.setPen(QColor(255, 235, 59));
+    painter.setFont(QFont("Microsoft YaHei", 8));
+    painter.drawText(x, y + 35, 80, 20, Qt::AlignCenter,
+                     QString("消耗: %1").arg(skill->cost));
+
+    // 绘制装备/卸下按钮（如果已解锁）
+    if (skill->unlocked) {
+        if (!skill->equipped) {
+            // 绘制装备按钮
+            QRect equipRect(x, y + 60, 35, 20);
+            equipRects[skillId] = equipRect;
+
+            painter.setBrush(QColor(76, 175, 80));  // 绿色
+            painter.drawRoundedRect(equipRect, 4, 4);
+
+            painter.setPen(QColor(255, 255, 255));
+            painter.setFont(QFont("Microsoft YaHei", 8));
+            painter.drawText(equipRect, Qt::AlignCenter, "装");
+        } else {
+            // 绘制卸下按钮
+            QRect unequipRect(x + 45, y + 60, 35, 20);
+            unequipRects[skillId] = unequipRect;
+
+            painter.setBrush(QColor(244, 67, 54));  // 红色
+            painter.drawRoundedRect(unequipRect, 4, 4);
+
+            painter.setPen(QColor(255, 255, 255));
+            painter.setFont(QFont("Microsoft YaHei", 8));
+            painter.drawText(unequipRect, Qt::AlignCenter, "卸");
+        }
+    }
+}
+
+void SkillTreePage::SkillTreeContainer::mousePressEvent(QMouseEvent* event) {
+    QWidget::mousePressEvent(event);
+
+    QPoint pos = event->pos();
+
+    // 检查是否点击了技能按钮
+    QString clickedSkillId = getSkillAtPosition(pos);
+    if (!clickedSkillId.isEmpty()) {
+        page->handleSkillClick(clickedSkillId);
+        return;
+    }
+
+    // 检查是否点击了装备按钮
+    QString equipSkillId = getEquipButtonAtPosition(pos);
+    if (!equipSkillId.isEmpty()) {
+        page->handleEquipClick(equipSkillId);
+        return;
+    }
+
+    // 检查是否点击了卸下按钮
+    QString unequipSkillId = getUnequipButtonAtPosition(pos);
+    if (!unequipSkillId.isEmpty()) {
+        page->handleUnequipClick(unequipSkillId);
+        return;
+    }
+}
+
+QString SkillTreePage::SkillTreeContainer::getSkillAtPosition(const QPoint& pos) {
+    for (auto it = skillRects.begin(); it != skillRects.end(); ++it) {
+        if (it.value().contains(pos)) {
+            return it.key();
+        }
+    }
+    return QString();
+}
+
+QString SkillTreePage::SkillTreeContainer::getEquipButtonAtPosition(const QPoint& pos) {
+    for (auto it = equipRects.begin(); it != equipRects.end(); ++it) {
+        if (it.value().contains(pos)) {
+            return it.key();
+        }
+    }
+    return QString();
+}
+
+QString SkillTreePage::SkillTreeContainer::getUnequipButtonAtPosition(const QPoint& pos) {
+    for (auto it = unequipRects.begin(); it != unequipRects.end(); ++it) {
+        if (it.value().contains(pos)) {
+            return it.key();
+        }
+    }
+    return QString();
 }
 
 SkillTreePage::SkillTreePage(SkillTree* skillTree, QWidget *parent) :
@@ -46,9 +202,6 @@ SkillTreePage::SkillTreePage(SkillTree* skillTree, QWidget *parent) :
     skillTreeContainer(nullptr)
 {
     ui->setupUi(this);
-
-    // 注意：样式设置已迁移到.ui文件中
-    // 仅保留信号连接和UI初始化
 
     connect(ui->btnBack, &QPushButton::clicked, this, &SkillTreePage::onBackButtonClicked);
 
@@ -68,459 +221,48 @@ void SkillTreePage::setupSkillTreeUI() {
         delete item;
     }
 
-    skillButtons.clear();
-    costLabels.clear();
-    equipButtons.clear();
-    unequipButtons.clear();
-    skillPositions.clear();
-
     // 创建技能树容器
-    skillTreeContainer = new SkillTreeContainer();
+    skillTreeContainer = new SkillTreeContainer(skillTree, this);
     skillTreeContainer->setObjectName("skillTreeContainer");
     skillTreeContainer->setStyleSheet("background:transparent;");
 
-    QGridLayout* grid = new QGridLayout(skillTreeContainer);
-    grid->setSpacing(15);
-    grid->setContentsMargins(20, 20, 20, 20);
-
-    // 设置容器的最小大小以确保滚动区域正常工作
-    skillTreeContainer->setMinimumSize(450, 400);
-
-    // 第0层: 行消除 (根节点)
-    SkillNode* rowClear = skillTree->getSkill("row_clear");
-    if (rowClear) {
-        QVBoxLayout* vLayout = new QVBoxLayout();
-        vLayout->setSpacing(2);
-
-        QPushButton* btn = new QPushButton(rowClear->name);
-        btn->setObjectName("row_clear");
-        btn->setFixedSize(80, 30);
-        btn->setToolTip(rowClear->description);
-        connect(btn, &QPushButton::clicked, this, &SkillTreePage::onSkillButtonClicked);
-        skillButtons["row_clear"] = btn;
-        vLayout->addWidget(btn, 0, Qt::AlignCenter);
-
-        QLabel* costLabel = new QLabel(QString("消耗: %1").arg(rowClear->cost));
-        costLabel->setAlignment(Qt::AlignCenter);
-        costLabel->setStyleSheet("color:#ffeb3b; font:8pt 'Microsoft YaHei';");
-        costLabels["row_clear"] = costLabel;
-        vLayout->addWidget(costLabel);
-
-        QHBoxLayout* buttonLayout = new QHBoxLayout();
-        buttonLayout->setSpacing(5);
-
-        QPushButton* equipBtn = new QPushButton("装");
-        equipBtn->setObjectName("row_clear_equip");
-        equipBtn->setFixedSize(35, 20);
-        equipBtn->setStyleSheet("background:#4caf50; color:white; font:8pt 'Microsoft YaHei';");
-        connect(equipBtn, &QPushButton::clicked, this, &SkillTreePage::onEquipButtonClicked);
-        equipButtons["row_clear"] = equipBtn;
-        buttonLayout->addWidget(equipBtn);
-
-        QPushButton* unequipBtn = new QPushButton("卸");
-        unequipBtn->setObjectName("row_clear_unequip");
-        unequipBtn->setFixedSize(35, 20);
-        unequipBtn->setStyleSheet("background:#f44336; color:white; font:8pt 'Microsoft YaHei';");
-        connect(unequipBtn, &QPushButton::clicked, this, &SkillTreePage::onUnequipButtonClicked);
-        unequipButtons["row_clear"] = unequipBtn;
-        buttonLayout->addWidget(unequipBtn);
-
-        vLayout->addLayout(buttonLayout);
-
-        // 根节点放在中间位置 (第3列，第0行)
-        grid->addLayout(vLayout, 0, 3, Qt::AlignCenter);
-        skillPositions["row_clear"] = QPoint(3, 0);
-    }
-
-    // 第1层
-    SkillNode* timeExtend = skillTree->getSkill("time_extend");
-    SkillNode* rainbowBomb = skillTree->getSkill("rainbow_bomb");
-
-    // 左分支：时间延长
-    if (timeExtend) {
-        QVBoxLayout* vLayout = new QVBoxLayout();
-        vLayout->setSpacing(2);
-
-        QPushButton* btn = new QPushButton(timeExtend->name);
-        btn->setObjectName("time_extend");
-        btn->setFixedSize(80, 30);
-        btn->setToolTip(timeExtend->description);
-        connect(btn, &QPushButton::clicked, this, &SkillTreePage::onSkillButtonClicked);
-        skillButtons["time_extend"] = btn;
-        vLayout->addWidget(btn, 0, Qt::AlignCenter);
-
-        QLabel* costLabel = new QLabel(QString("消耗: %1").arg(timeExtend->cost));
-        costLabel->setAlignment(Qt::AlignCenter);
-        costLabel->setStyleSheet("color:#ffeb3b; font:8pt 'Microsoft YaHei';");
-        costLabels["time_extend"] = costLabel;
-        vLayout->addWidget(costLabel);
-
-        QHBoxLayout* buttonLayout = new QHBoxLayout();
-        buttonLayout->setSpacing(5);
-
-        QPushButton* equipBtn = new QPushButton("装");
-        equipBtn->setObjectName("time_extend_equip");
-        equipBtn->setFixedSize(35, 20);
-        equipBtn->setStyleSheet("background:#4caf50; color:white; font:8pt 'Microsoft YaHei';");
-        connect(equipBtn, &QPushButton::clicked, this, &SkillTreePage::onEquipButtonClicked);
-        equipButtons["time_extend"] = equipBtn;
-        buttonLayout->addWidget(equipBtn);
-
-        QPushButton* unequipBtn = new QPushButton("卸");
-        unequipBtn->setObjectName("time_extend_unequip");
-        unequipBtn->setFixedSize(35, 20);
-        unequipBtn->setStyleSheet("background:#f44336; color:white; font:8pt 'Microsoft YaHei';");
-        connect(unequipBtn, &QPushButton::clicked, this, &SkillTreePage::onUnequipButtonClicked);
-        unequipButtons["time_extend"] = unequipBtn;
-        buttonLayout->addWidget(unequipBtn);
-
-        vLayout->addLayout(buttonLayout);
-
-        // 放在根节点左下方 (第1列，第1行)
-        grid->addLayout(vLayout, 1, 1, Qt::AlignCenter);
-        skillPositions["time_extend"] = QPoint(1, 1);
-    }
-
-    // 右分支：彩虹炸弹
-    if (rainbowBomb) {
-        QVBoxLayout* vLayout = new QVBoxLayout();
-        vLayout->setSpacing(2);
-
-        QPushButton* btn = new QPushButton(rainbowBomb->name);
-        btn->setObjectName("rainbow_bomb");
-        btn->setFixedSize(80, 30);
-        btn->setToolTip(rainbowBomb->description);
-        connect(btn, &QPushButton::clicked, this, &SkillTreePage::onSkillButtonClicked);
-        skillButtons["rainbow_bomb"] = btn;
-        vLayout->addWidget(btn, 0, Qt::AlignCenter);
-
-        QLabel* costLabel = new QLabel(QString("消耗: %1").arg(rainbowBomb->cost));
-        costLabel->setAlignment(Qt::AlignCenter);
-        costLabel->setStyleSheet("color:#ffeb3b; font:8pt 'Microsoft YaHei';");
-        costLabels["rainbow_bomb"] = costLabel;
-        vLayout->addWidget(costLabel);
-
-        QHBoxLayout* buttonLayout = new QHBoxLayout();
-        buttonLayout->setSpacing(5);
-
-        QPushButton* equipBtn = new QPushButton("装");
-        equipBtn->setObjectName("rainbow_bomb_equip");
-        equipBtn->setFixedSize(35, 20);
-        equipBtn->setStyleSheet("background:#4caf50; color:white; font:8pt 'Microsoft YaHei';");
-        connect(equipBtn, &QPushButton::clicked, this, &SkillTreePage::onEquipButtonClicked);
-        equipButtons["rainbow_bomb"] = equipBtn;
-        buttonLayout->addWidget(equipBtn);
-
-        QPushButton* unequipBtn = new QPushButton("卸");
-        unequipBtn->setObjectName("rainbow_bomb_unequip");
-        unequipBtn->setFixedSize(35, 20);
-        unequipBtn->setStyleSheet("background:#f44336; color:white; font:8pt 'Microsoft YaHei';");
-        connect(unequipBtn, &QPushButton::clicked, this, &SkillTreePage::onUnequipButtonClicked);
-        unequipButtons["rainbow_bomb"] = unequipBtn;
-        buttonLayout->addWidget(unequipBtn);
-
-        vLayout->addLayout(buttonLayout);
-
-        // 放在根节点右下方 (第5列，第1行)
-        grid->addLayout(vLayout, 1, 5, Qt::AlignCenter);
-        skillPositions["rainbow_bomb"] = QPoint(5, 1);
-    }
-
-    // 第2层 - 左分支的子节点
-    SkillNode* crossClear = skillTree->getSkill("cross_clear");
-    SkillNode* scoreDouble = skillTree->getSkill("score_double");
-
-    // 十字消除（彩虹炸弹的子节点）
-    if (crossClear) {
-        QVBoxLayout* vLayout = new QVBoxLayout();
-        vLayout->setSpacing(2);
-
-        QPushButton* btn = new QPushButton(crossClear->name);
-        btn->setObjectName("cross_clear");
-        btn->setFixedSize(80, 30);
-        btn->setToolTip(crossClear->description);
-        connect(btn, &QPushButton::clicked, this, &SkillTreePage::onSkillButtonClicked);
-        skillButtons["cross_clear"] = btn;
-        vLayout->addWidget(btn, 0, Qt::AlignCenter);
-
-        QLabel* costLabel = new QLabel(QString("消耗: %1").arg(crossClear->cost));
-        costLabel->setAlignment(Qt::AlignCenter);
-        costLabel->setStyleSheet("color:#ffeb3b; font:8pt 'Microsoft YaHei';");
-        costLabels["cross_clear"] = costLabel;
-        vLayout->addWidget(costLabel);
-
-        QHBoxLayout* buttonLayout = new QHBoxLayout();
-        buttonLayout->setSpacing(5);
-
-        QPushButton* equipBtn = new QPushButton("装");
-        equipBtn->setObjectName("cross_clear_equip");
-        equipBtn->setFixedSize(35, 20);
-        equipBtn->setStyleSheet("background:#4caf50; color:white; font:8pt 'Microsoft YaHei';");
-        connect(equipBtn, &QPushButton::clicked, this, &SkillTreePage::onEquipButtonClicked);
-        equipButtons["cross_clear"] = equipBtn;
-        buttonLayout->addWidget(equipBtn);
-
-        QPushButton* unequipBtn = new QPushButton("卸");
-        unequipBtn->setObjectName("cross_clear_unequip");
-        unequipBtn->setFixedSize(35, 20);
-        unequipBtn->setStyleSheet("background:#f44336; color:white; font:8pt 'Microsoft YaHei';");
-        connect(unequipBtn, &QPushButton::clicked, this, &SkillTreePage::onUnequipButtonClicked);
-        unequipButtons["cross_clear"] = unequipBtn;
-        buttonLayout->addWidget(unequipBtn);
-
-        vLayout->addLayout(buttonLayout);
-
-        // 放在彩虹炸弹的左下方（第3列，第2行）
-        grid->addLayout(vLayout, 2, 3, Qt::AlignCenter);
-        skillPositions["cross_clear"] = QPoint(3, 2);
-    }
-
-    // 得分翻倍（时间延长的子节点）
-    if (scoreDouble) {
-        QVBoxLayout* vLayout = new QVBoxLayout();
-        vLayout->setSpacing(2);
-
-        QPushButton* btn = new QPushButton(scoreDouble->name);
-        btn->setObjectName("score_double");
-        btn->setFixedSize(80, 30);
-        btn->setToolTip(scoreDouble->description);
-        connect(btn, &QPushButton::clicked, this, &SkillTreePage::onSkillButtonClicked);
-        skillButtons["score_double"] = btn;
-        vLayout->addWidget(btn, 0, Qt::AlignCenter);
-
-        QLabel* costLabel = new QLabel(QString("消耗: %1").arg(scoreDouble->cost));
-        costLabel->setAlignment(Qt::AlignCenter);
-        costLabel->setStyleSheet("color:#ffeb3b; font:8pt 'Microsoft YaHei';");
-        costLabels["score_double"] = costLabel;
-        vLayout->addWidget(costLabel);
-
-        QHBoxLayout* buttonLayout = new QHBoxLayout();
-        buttonLayout->setSpacing(5);
-
-        QPushButton* equipBtn = new QPushButton("装");
-        equipBtn->setObjectName("score_double_equip");
-        equipBtn->setFixedSize(35, 20);
-        equipBtn->setStyleSheet("background:#4caf50; color:white; font:8pt 'Microsoft YaHei';");
-        connect(equipBtn, &QPushButton::clicked, this, &SkillTreePage::onEquipButtonClicked);
-        equipButtons["score_double"] = equipBtn;
-        buttonLayout->addWidget(equipBtn);
-
-        QPushButton* unequipBtn = new QPushButton("卸");
-        unequipBtn->setObjectName("score_double_unequip");
-        unequipBtn->setFixedSize(35, 20);
-        unequipBtn->setStyleSheet("background:#f44336; color:white; font:8pt 'Microsoft YaHei';");
-        connect(unequipBtn, &QPushButton::clicked, this, &SkillTreePage::onUnequipButtonClicked);
-        unequipButtons["score_double"] = unequipBtn;
-        buttonLayout->addWidget(unequipBtn);
-
-        vLayout->addLayout(buttonLayout);
-
-        // 放在时间延长的右下方 (第1列，第2行)
-        grid->addLayout(vLayout, 2, 1, Qt::AlignCenter);
-        skillPositions["score_double"] = QPoint(1, 2);
-    }
-
-    // 第2层 - 右分支的子节点
-    SkillNode* colorUnify = skillTree->getSkill("color_unify");
-    SkillNode* timeFreeze = skillTree->getSkill("time_freeze");
-
-    // 颜色统一（彩虹炸弹的子节点）
-    if (colorUnify) {
-        QVBoxLayout* vLayout = new QVBoxLayout();
-        vLayout->setSpacing(2);
-
-        QPushButton* btn = new QPushButton(colorUnify->name);
-        btn->setObjectName("color_unify");
-        btn->setFixedSize(80, 30);
-        btn->setToolTip(colorUnify->description);
-        connect(btn, &QPushButton::clicked, this, &SkillTreePage::onSkillButtonClicked);
-        skillButtons["color_unify"] = btn;
-        vLayout->addWidget(btn, 0, Qt::AlignCenter);
-
-        QLabel* costLabel = new QLabel(QString("消耗: %1").arg(colorUnify->cost));
-        costLabel->setAlignment(Qt::AlignCenter);
-        costLabel->setStyleSheet("color:#ffeb3b; font:8pt 'Microsoft YaHei';");
-        costLabels["color_unify"] = costLabel;
-        vLayout->addWidget(costLabel);
-
-        QHBoxLayout* buttonLayout = new QHBoxLayout();
-        buttonLayout->setSpacing(5);
-
-        QPushButton* equipBtn = new QPushButton("装");
-        equipBtn->setObjectName("color_unify_equip");
-        equipBtn->setFixedSize(35, 20);
-        equipBtn->setStyleSheet("background:#4caf50; color:white; font:8pt 'Microsoft YaHei';");
-        connect(equipBtn, &QPushButton::clicked, this, &SkillTreePage::onEquipButtonClicked);
-        equipButtons["color_unify"] = equipBtn;
-        buttonLayout->addWidget(equipBtn);
-
-        QPushButton* unequipBtn = new QPushButton("卸");
-        unequipBtn->setObjectName("color_unify_unequip");
-        unequipBtn->setFixedSize(35, 20);
-        unequipBtn->setStyleSheet("background:#f44336; color:white; font:8pt 'Microsoft YaHei';");
-        connect(unequipBtn, &QPushButton::clicked, this, &SkillTreePage::onUnequipButtonClicked);
-        unequipButtons["color_unify"] = unequipBtn;
-        buttonLayout->addWidget(unequipBtn);
-
-        vLayout->addLayout(buttonLayout);
-
-        // 放在彩虹炸弹的右下方（第5列，第2行）
-        grid->addLayout(vLayout, 2, 5, Qt::AlignCenter);
-        skillPositions["color_unify"] = QPoint(5, 2);
-    }
-
-    // 时间冻结（时间延长的子节点）
-    if (timeFreeze) {
-        QVBoxLayout* vLayout = new QVBoxLayout();
-        vLayout->setSpacing(2);
-
-        QPushButton* btn = new QPushButton(timeFreeze->name);
-        btn->setObjectName("time_freeze");
-        btn->setFixedSize(80, 30);
-        btn->setToolTip(timeFreeze->description);
-        connect(btn, &QPushButton::clicked, this, &SkillTreePage::onSkillButtonClicked);
-        skillButtons["time_freeze"] = btn;
-        vLayout->addWidget(btn, 0, Qt::AlignCenter);
-
-        QLabel* costLabel = new QLabel(QString("消耗: %1").arg(timeFreeze->cost));
-        costLabel->setAlignment(Qt::AlignCenter);
-        costLabel->setStyleSheet("color:#ffeb3b; font:8pt 'Microsoft YaHei';");
-        costLabels["time_freeze"] = costLabel;
-        vLayout->addWidget(costLabel);
-
-        QHBoxLayout* buttonLayout = new QHBoxLayout();
-        buttonLayout->setSpacing(5);
-
-        QPushButton* equipBtn = new QPushButton("装");
-        equipBtn->setObjectName("time_freeze_equip");
-        equipBtn->setFixedSize(35, 20);
-        equipBtn->setStyleSheet("background:#4caf50; color:white; font:8pt 'Microsoft YaHei';");
-        connect(equipBtn, &QPushButton::clicked, this, &SkillTreePage::onEquipButtonClicked);
-        equipButtons["time_freeze"] = equipBtn;
-        buttonLayout->addWidget(equipBtn);
-
-        QPushButton* unequipBtn = new QPushButton("卸");
-        unequipBtn->setObjectName("time_freeze_unequip");
-        unequipBtn->setFixedSize(35, 20);
-        unequipBtn->setStyleSheet("background:#f44336; color:white; font:8pt 'Microsoft YaHei';");
-        connect(unequipBtn, &QPushButton::clicked, this, &SkillTreePage::onUnequipButtonClicked);
-        unequipButtons["time_freeze"] = unequipBtn;
-        buttonLayout->addWidget(unequipBtn);
-
-        vLayout->addLayout(buttonLayout);
-
-        // 放在时间延长的左下方 (第0列，第2行)
-        grid->addLayout(vLayout, 2, 0, Qt::AlignCenter);
-        skillPositions["time_freeze"] = QPoint(0, 2);
-    }
-
-    // 第3层：终极爆发（颜色统一的子节点）
-    SkillNode* ultimateBurst = skillTree->getSkill("ultimate_burst");
-
-    if (ultimateBurst) {
-        QVBoxLayout* vLayout = new QVBoxLayout();
-        vLayout->setSpacing(2);
-
-        QPushButton* btn = new QPushButton(ultimateBurst->name);
-        btn->setObjectName("ultimate_burst");
-        btn->setFixedSize(80, 30);
-        btn->setToolTip(ultimateBurst->description);
-        connect(btn, &QPushButton::clicked, this, &SkillTreePage::onSkillButtonClicked);
-        skillButtons["ultimate_burst"] = btn;
-        vLayout->addWidget(btn, 0, Qt::AlignCenter);
-
-        QLabel* costLabel = new QLabel(QString("消耗: %1").arg(ultimateBurst->cost));
-        costLabel->setAlignment(Qt::AlignCenter);
-        costLabel->setStyleSheet("color:#ffeb3b; font:8pt 'Microsoft YaHei';");
-        costLabels["ultimate_burst"] = costLabel;
-        vLayout->addWidget(costLabel);
-
-        QHBoxLayout* buttonLayout = new QHBoxLayout();
-        buttonLayout->setSpacing(5);
-
-        QPushButton* equipBtn = new QPushButton("装");
-        equipBtn->setObjectName("ultimate_burst_equip");
-        equipBtn->setFixedSize(35, 20);
-        equipBtn->setStyleSheet("background:#4caf50; color:white; font:8pt 'Microsoft YaHei';");
-        connect(equipBtn, &QPushButton::clicked, this, &SkillTreePage::onEquipButtonClicked);
-        equipButtons["ultimate_burst"] = equipBtn;
-        buttonLayout->addWidget(equipBtn);
-
-        QPushButton* unequipBtn = new QPushButton("卸");
-        unequipBtn->setObjectName("ultimate_burst_unequip");
-        unequipBtn->setFixedSize(35, 20);
-        unequipBtn->setStyleSheet("background:#f44336; color:white; font:8pt 'Microsoft YaHei';");
-        connect(unequipBtn, &QPushButton::clicked, this, &SkillTreePage::onUnequipButtonClicked);
-        unequipButtons["ultimate_burst"] = unequipBtn;
-        buttonLayout->addWidget(unequipBtn);
-
-        vLayout->addLayout(buttonLayout);
-
-        // 放在颜色统一的正下方 (第5列，第3行)
-        grid->addLayout(vLayout, 3, 5, Qt::AlignCenter);
-        skillPositions["ultimate_burst"] = QPoint(5, 3);
-    }
+    // 设置容器的最小大小
+    skillTreeContainer->setMinimumSize(600, 500);
 
     ui->skillTreeLayout->addWidget(skillTreeContainer);
-}
-
-void SkillTreePage::paintEvent(QPaintEvent *event) {
-    QWidget::paintEvent(event);
 }
 
 void SkillTreePage::refreshUI() {
     // 更新技能点显示
     ui->labelSkillPoints->setText(QString("技能点: %1").arg(skillTree->getSkillPoints()));
 
-    // 更新所有技能按钮状态
-    for (const QString& skillId : skillButtons.keys()) {
-        updateSkillButtonState(skillId);
+    // 获取所有技能状态
+    QMap<QString, SkillNode*> skillStates;
+    const QMap<QString, SkillNode*>& allSkills = skillTree->getAllSkills();
+    for (auto it = allSkills.begin(); it != allSkills.end(); ++it) {
+        skillStates[it.key()] = it.value();
     }
 
     // 更新容器绘制
     if (skillTreeContainer) {
+        skillTreeContainer->setSkillStates(skillStates);
         skillTreeContainer->update();
     }
 }
 
-void SkillTreePage::updateSkillButtonState(const QString& skillId) {
-    if (!skillButtons.contains(skillId)) return;
-
-    SkillNode* skill = skillTree->getSkill(skillId);
-    if (!skill) return;
-
-    QPushButton* btn = skillButtons[skillId];
-
-    // 设置按钮样式
-    QString style;
-    if (skill->equipped) {
-        style = "background:#4caf50; color:white;";  // 已装备 - 绿色
-    } else if (skill->unlocked) {
-        style = "background:#ff9de0; color:white;";  // 已解锁 - 粉色
-    } else if (skillTree->getSkillPoints() >= skill->cost &&
-               skillTree->checkPrerequisites(skillId)) {
-        style = "background:#2196f3; color:white;";  // 可解锁 - 蓝色
-    } else {
-        style = "background:#757575; color:#ccc;";    // 不可解锁 - 灰色
-    }
-
-    btn->setStyleSheet(style + "border-radius:8px; font:bold 10pt 'Microsoft YaHei';");
-
-    // 更新装备/卸下按钮可见性
-    if (equipButtons.contains(skillId)) {
-        equipButtons[skillId]->setVisible(skill->unlocked && !skill->equipped);
-    }
-    if (unequipButtons.contains(skillId)) {
-        unequipButtons[skillId]->setVisible(skill->equipped);
-    }
+void SkillTreePage::onSkillButtonClicked() {
+    // 这个函数现在通过handleSkillClick处理
 }
 
-void SkillTreePage::onSkillButtonClicked() {
-    QPushButton* btn = qobject_cast<QPushButton*>(sender());
-    if (!btn) return;
+void SkillTreePage::onEquipButtonClicked() {
+    // 这个函数现在通过handleEquipClick处理
+}
 
-    QString skillId = btn->objectName();
+void SkillTreePage::onUnequipButtonClicked() {
+    // 这个函数现在通过handleUnequipClick处理
+}
 
+void SkillTreePage::handleSkillClick(const QString& skillId) {
     // 尝试解锁技能
     if (skillTree->unlockSkill(skillId)) {
         QMessageBox::information(this, "成功", QString("已解锁技能: %1").arg(skillTree->getSkill(skillId)->name));
@@ -540,13 +282,7 @@ void SkillTreePage::onSkillButtonClicked() {
     }
 }
 
-void SkillTreePage::onEquipButtonClicked() {
-    QPushButton* btn = qobject_cast<QPushButton*>(sender());
-    if (!btn) return;
-
-    QString btnName = btn->objectName();
-    QString skillId = btnName.replace("_equip", "");
-
+void SkillTreePage::handleEquipClick(const QString& skillId) {
     if (skillTree->equipSkill(skillId)) {
         refreshUI();
     } else {
@@ -560,13 +296,7 @@ void SkillTreePage::onEquipButtonClicked() {
     }
 }
 
-void SkillTreePage::onUnequipButtonClicked() {
-    QPushButton* btn = qobject_cast<QPushButton*>(sender());
-    if (!btn) return;
-
-    QString btnName = btn->objectName();
-    QString skillId = btnName.replace("_unequip", "");
-
+void SkillTreePage::handleUnequipClick(const QString& skillId) {
     if (skillTree->unequipSkill(skillId)) {
         refreshUI();
     }
