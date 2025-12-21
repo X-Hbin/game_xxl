@@ -12,8 +12,8 @@
 #include <QScrollArea>
 #include "skilltree.h"
 
-namespace Ui {
-class SkillTreePage;
+              namespace Ui {
+    class SkillTreePage;
 }
 
 class SkillTreePage : public QWidget {
@@ -29,33 +29,50 @@ signals:
     void backRequested();
 
 private slots:
-    void onSkillButtonClicked();
-    void onEquipButtonClicked();
-    void onUnequipButtonClicked();
+    void onSkillButtonClicked();  // 保持无参数版本
+    void onEquipButtonClicked();  // 保持无参数版本
+    void onUnequipButtonClicked();  // 保持无参数版本
     void onBackButtonClicked();
 
 private:
     class SkillTreeContainer : public QWidget {
     public:
-        SkillTreeContainer(QWidget* parent = nullptr) : QWidget(parent) {}
+        SkillTreeContainer(SkillTree* skillTree, SkillTreePage* page, QWidget* parent = nullptr)
+            : QWidget(parent), skillTree(skillTree), page(page) {}
+
+        void setSkillStates(const QMap<QString, SkillNode*>& states) {
+            skillStates = states;
+            update();
+        }
+
     protected:
         void paintEvent(QPaintEvent* event) override;
+        void mousePressEvent(QMouseEvent* event) override;
+
+    private:
+        SkillTree* skillTree;
+        SkillTreePage* page;
+        QMap<QString, SkillNode*> skillStates;
+        QMap<QString, QRect> skillRects; // 存储技能按钮的位置和大小
+        QMap<QString, QRect> equipRects; // 存储装备按钮的位置和大小
+        QMap<QString, QRect> unequipRects; // 存储卸下按钮的位置和大小
+
+        void drawSkillNode(QPainter& painter, const QString& skillId, int x, int y);
+        QString getSkillAtPosition(const QPoint& pos);
+        QString getEquipButtonAtPosition(const QPoint& pos);
+        QString getUnequipButtonAtPosition(const QPoint& pos);
     };
 
     Ui::SkillTreePage *ui;
     SkillTree* skillTree;
-    QMap<QString, QPushButton*> skillButtons;
-    QMap<QString, QLabel*> costLabels;
-    QMap<QString, QPushButton*> equipButtons;
-    QMap<QString, QPushButton*> unequipButtons;
-    QMap<QString, QPoint> skillPositions; // 记录技能位置用于连线
-    SkillTreeContainer* skillTreeContainer; // 技能树容器
+    SkillTreeContainer* skillTreeContainer;
 
     void setupSkillTreeUI();
-    void updateSkillButtonState(const QString& skillId);
 
-protected:
-    void paintEvent(QPaintEvent *event) override;
+    // 添加处理点击的辅助函数
+    void handleSkillClick(const QString& skillId);
+    void handleEquipClick(const QString& skillId);
+    void handleUnequipClick(const QString& skillId);
 };
 
 #endif // SKILLTREEPAGE_H
