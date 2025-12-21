@@ -5,43 +5,50 @@
 #include <QStyleOption>
 #include <QMessageBox>
 
+void SkillTreePage::SkillTreeContainer::paintEvent(QPaintEvent* event) {
+    QWidget::paintEvent(event);
+
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    // 设置连线样式
+    QPen pen(QColor(255, 157, 224,180)); // 粉色
+    pen.setWidth(4);
+    painter.setPen(pen);
+
+    // 使用硬编码的相对坐标绘制连线
+    // 行消除 -> 时间延长
+    painter.drawLine(410, 65, 250, 180);
+
+    // 行消除 -> 彩虹炸弹
+    painter.drawLine(410, 65, 570, 180);
+
+    // 时间延长 -> 得分翻倍
+    painter.drawLine(250, 180, 250, 300);
+
+    // 时间延长 -> 时间冻结
+    painter.drawLine(250, 180, 90, 300);
+
+    // 彩虹炸弹 -> 十字消除
+    painter.drawLine(570, 180, 410, 300);
+
+    // 彩虹炸弹 -> 颜色统一
+    painter.drawLine(570, 180, 570, 300);
+
+    // 颜色统一 -> 终极爆发
+    painter.drawLine(570, 300, 570, 430);
+}
+
 SkillTreePage::SkillTreePage(SkillTree* skillTree, QWidget *parent) :
     QWidget(parent),
     ui(new Ui::SkillTreePage),
-    skillTree(skillTree)
+    skillTree(skillTree),
+    skillTreeContainer(nullptr)
 {
     ui->setupUi(this);
 
-    // 设置样式
-    this->setStyleSheet(
-        "QWidget {"
-        "   background-color: #162640;"
-        "}"
-        "QLabel {"
-        "   color: #ffffff;"
-        "   font-family: 'Microsoft YaHei';"
-        "}"
-        "QPushButton {"
-        "   border-radius: 8px;"
-        "   font: bold 10pt 'Microsoft YaHei';"
-        "}"
-        );
-
-    // 顶部栏
-    ui->topBar->setStyleSheet("background:#111; border-bottom:2px solid #ff9de0;");
-
-    // 返回按钮
-    ui->btnBack->setStyleSheet(
-        "QPushButton{"
-        "  color:#fff; font:14pt 'Microsoft YaHei'; border:none; border-radius:8px;"
-        "  background:qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #ff9de0, stop:1 #ff6bcb);"
-        "}"
-        "QPushButton:hover{background:qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #ff6bcb, stop:1 #ff4fa5);}"
-        "QPushButton:pressed{background:qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #ff4fa5, stop:1 #e0438c);}"
-        );
-
-    // 技能点显示
-    ui->labelSkillPoints->setStyleSheet("color:#ff9de0; font:bold 18pt 'Microsoft YaHei';");
+    // 注意：样式设置已迁移到.ui文件中
+    // 仅保留信号连接和UI初始化
 
     connect(ui->btnBack, &QPushButton::clicked, this, &SkillTreePage::onBackButtonClicked);
 
@@ -67,30 +74,27 @@ void SkillTreePage::setupSkillTreeUI() {
     unequipButtons.clear();
     skillPositions.clear();
 
-    // 使用一个大的容器widget来容纳技能树，便于布局
-    QWidget* skillTreeContainer = new QWidget();
+    // 创建技能树容器
+    skillTreeContainer = new SkillTreeContainer();
+    skillTreeContainer->setObjectName("skillTreeContainer");
+    skillTreeContainer->setStyleSheet("background:transparent;");
+
     QGridLayout* grid = new QGridLayout(skillTreeContainer);
-    grid->setSpacing(15); // 减小间距
+    grid->setSpacing(15);
     grid->setContentsMargins(20, 20, 20, 20);
 
-    // 设置行列比例，使布局更紧凑
-    for (int i = 0; i < 7; ++i) {
-        grid->setColumnMinimumWidth(i, 90); // 减小列宽
-    }
-
-    for (int i = 0; i < 5; ++i) {
-        grid->setRowMinimumHeight(i, 70); // 减小行高
-    }
+    // 设置容器的最小大小以确保滚动区域正常工作
+    skillTreeContainer->setMinimumSize(450, 400);
 
     // 第0层: 行消除 (根节点)
     SkillNode* rowClear = skillTree->getSkill("row_clear");
     if (rowClear) {
         QVBoxLayout* vLayout = new QVBoxLayout();
-        vLayout->setSpacing(2); // 减小内部间距
+        vLayout->setSpacing(2);
 
         QPushButton* btn = new QPushButton(rowClear->name);
         btn->setObjectName("row_clear");
-        btn->setFixedSize(80, 30); // 减小按钮大小
+        btn->setFixedSize(80, 30);
         btn->setToolTip(rowClear->description);
         connect(btn, &QPushButton::clicked, this, &SkillTreePage::onSkillButtonClicked);
         skillButtons["row_clear"] = btn;
@@ -107,7 +111,7 @@ void SkillTreePage::setupSkillTreeUI() {
 
         QPushButton* equipBtn = new QPushButton("装");
         equipBtn->setObjectName("row_clear_equip");
-        equipBtn->setFixedSize(35, 20); // 减小按钮大小
+        equipBtn->setFixedSize(35, 20);
         equipBtn->setStyleSheet("background:#4caf50; color:white; font:8pt 'Microsoft YaHei';");
         connect(equipBtn, &QPushButton::clicked, this, &SkillTreePage::onEquipButtonClicked);
         equipButtons["row_clear"] = equipBtn;
@@ -123,9 +127,9 @@ void SkillTreePage::setupSkillTreeUI() {
 
         vLayout->addLayout(buttonLayout);
 
-        // 根节点放在中间位置
+        // 根节点放在中间位置 (第3列，第0行)
         grid->addLayout(vLayout, 0, 3, Qt::AlignCenter);
-        skillPositions["row_clear"] = QPoint(3, 0); // 列, 行
+        skillPositions["row_clear"] = QPoint(3, 0);
     }
 
     // 第1层
@@ -172,7 +176,7 @@ void SkillTreePage::setupSkillTreeUI() {
 
         vLayout->addLayout(buttonLayout);
 
-        // 放在根节点左下方
+        // 放在根节点左下方 (第1列，第1行)
         grid->addLayout(vLayout, 1, 1, Qt::AlignCenter);
         skillPositions["time_extend"] = QPoint(1, 1);
     }
@@ -217,7 +221,7 @@ void SkillTreePage::setupSkillTreeUI() {
 
         vLayout->addLayout(buttonLayout);
 
-        // 放在根节点右下方
+        // 放在根节点右下方 (第5列，第1行)
         grid->addLayout(vLayout, 1, 5, Qt::AlignCenter);
         skillPositions["rainbow_bomb"] = QPoint(5, 1);
     }
@@ -266,7 +270,7 @@ void SkillTreePage::setupSkillTreeUI() {
 
         vLayout->addLayout(buttonLayout);
 
-        // 放在彩虹炸弹的左下方（错开位置）
+        // 放在彩虹炸弹的左下方（第3列，第2行）
         grid->addLayout(vLayout, 2, 3, Qt::AlignCenter);
         skillPositions["cross_clear"] = QPoint(3, 2);
     }
@@ -311,7 +315,7 @@ void SkillTreePage::setupSkillTreeUI() {
 
         vLayout->addLayout(buttonLayout);
 
-        // 放在时间延长的右下方
+        // 放在时间延长的右下方 (第1列，第2行)
         grid->addLayout(vLayout, 2, 1, Qt::AlignCenter);
         skillPositions["score_double"] = QPoint(1, 2);
     }
@@ -360,7 +364,7 @@ void SkillTreePage::setupSkillTreeUI() {
 
         vLayout->addLayout(buttonLayout);
 
-        // 放在彩虹炸弹的右下方（为终极爆发留空间）
+        // 放在彩虹炸弹的右下方（第5列，第2行）
         grid->addLayout(vLayout, 2, 5, Qt::AlignCenter);
         skillPositions["color_unify"] = QPoint(5, 2);
     }
@@ -405,7 +409,7 @@ void SkillTreePage::setupSkillTreeUI() {
 
         vLayout->addLayout(buttonLayout);
 
-        // 放在时间延长的左下方
+        // 放在时间延长的左下方 (第0列，第2行)
         grid->addLayout(vLayout, 2, 0, Qt::AlignCenter);
         skillPositions["time_freeze"] = QPoint(0, 2);
     }
@@ -452,7 +456,7 @@ void SkillTreePage::setupSkillTreeUI() {
 
         vLayout->addLayout(buttonLayout);
 
-        // 放在颜色统一的正下方
+        // 放在颜色统一的正下方 (第5列，第3行)
         grid->addLayout(vLayout, 3, 5, Qt::AlignCenter);
         skillPositions["ultimate_burst"] = QPoint(5, 3);
     }
@@ -462,99 +466,6 @@ void SkillTreePage::setupSkillTreeUI() {
 
 void SkillTreePage::paintEvent(QPaintEvent *event) {
     QWidget::paintEvent(event);
-    drawConnections();
-}
-
-void SkillTreePage::drawConnections() {
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
-
-    // 设置连线样式
-    QPen pen(QColor(255, 157, 224, 180)); // 粉色半透明
-    pen.setWidth(2);
-    painter.setPen(pen);
-
-    // 获取技能树容器
-    QWidget* container = ui->skillTreeLayout->itemAt(0)->widget();
-    if (!container) return;
-
-    // 绘制技能之间的连线
-    // 1. row_clear -> time_extend
-    if (skillButtons.contains("row_clear") && skillButtons.contains("time_extend")) {
-        QPushButton* parentBtn = skillButtons["row_clear"];
-        QPushButton* childBtn = skillButtons["time_extend"];
-
-        QPoint parentCenter = parentBtn->mapTo(this, parentBtn->rect().center());
-        QPoint childCenter = childBtn->mapTo(this, childBtn->rect().center());
-
-        painter.drawLine(parentCenter, childCenter);
-    }
-
-    // 2. row_clear -> rainbow_bomb
-    if (skillButtons.contains("row_clear") && skillButtons.contains("rainbow_bomb")) {
-        QPushButton* parentBtn = skillButtons["row_clear"];
-        QPushButton* childBtn = skillButtons["rainbow_bomb"];
-
-        QPoint parentCenter = parentBtn->mapTo(this, parentBtn->rect().center());
-        QPoint childCenter = childBtn->mapTo(this, childBtn->rect().center());
-
-        painter.drawLine(parentCenter, childCenter);
-    }
-
-    // 3. time_extend -> score_double
-    if (skillButtons.contains("time_extend") && skillButtons.contains("score_double")) {
-        QPushButton* parentBtn = skillButtons["time_extend"];
-        QPushButton* childBtn = skillButtons["score_double"];
-
-        QPoint parentCenter = parentBtn->mapTo(this, parentBtn->rect().center());
-        QPoint childCenter = childBtn->mapTo(this, childBtn->rect().center());
-
-        painter.drawLine(parentCenter, childCenter);
-    }
-
-    // 4. time_extend -> time_freeze
-    if (skillButtons.contains("time_extend") && skillButtons.contains("time_freeze")) {
-        QPushButton* parentBtn = skillButtons["time_extend"];
-        QPushButton* childBtn = skillButtons["time_freeze"];
-
-        QPoint parentCenter = parentBtn->mapTo(this, parentBtn->rect().center());
-        QPoint childCenter = childBtn->mapTo(this, childBtn->rect().center());
-
-        painter.drawLine(parentCenter, childCenter);
-    }
-
-    // 5. rainbow_bomb -> cross_clear
-    if (skillButtons.contains("rainbow_bomb") && skillButtons.contains("cross_clear")) {
-        QPushButton* parentBtn = skillButtons["rainbow_bomb"];
-        QPushButton* childBtn = skillButtons["cross_clear"];
-
-        QPoint parentCenter = parentBtn->mapTo(this, parentBtn->rect().center());
-        QPoint childCenter = childBtn->mapTo(this, childBtn->rect().center());
-
-        painter.drawLine(parentCenter, childCenter);
-    }
-
-    // 6. rainbow_bomb -> color_unify
-    if (skillButtons.contains("rainbow_bomb") && skillButtons.contains("color_unify")) {
-        QPushButton* parentBtn = skillButtons["rainbow_bomb"];
-        QPushButton* childBtn = skillButtons["color_unify"];
-
-        QPoint parentCenter = parentBtn->mapTo(this, parentBtn->rect().center());
-        QPoint childCenter = childBtn->mapTo(this, childBtn->rect().center());
-
-        painter.drawLine(parentCenter, childCenter);
-    }
-
-    // 7. color_unify -> ultimate_burst
-    if (skillButtons.contains("color_unify") && skillButtons.contains("ultimate_burst")) {
-        QPushButton* parentBtn = skillButtons["color_unify"];
-        QPushButton* childBtn = skillButtons["ultimate_burst"];
-
-        QPoint parentCenter = parentBtn->mapTo(this, parentBtn->rect().center());
-        QPoint childCenter = childBtn->mapTo(this, childBtn->rect().center());
-
-        painter.drawLine(parentCenter, childCenter);
-    }
 }
 
 void SkillTreePage::refreshUI() {
@@ -564,6 +475,11 @@ void SkillTreePage::refreshUI() {
     // 更新所有技能按钮状态
     for (const QString& skillId : skillButtons.keys()) {
         updateSkillButtonState(skillId);
+    }
+
+    // 更新容器绘制
+    if (skillTreeContainer) {
+        skillTreeContainer->update();
     }
 }
 
@@ -580,10 +496,10 @@ void SkillTreePage::updateSkillButtonState(const QString& skillId) {
     if (skill->equipped) {
         style = "background:#4caf50; color:white;";  // 已装备 - 绿色
     } else if (skill->unlocked) {
-        style = "background:#2196f3; color:white;";  // 已解锁 - 蓝色
+        style = "background:#ff9de0; color:white;";  // 已解锁 - 粉色
     } else if (skillTree->getSkillPoints() >= skill->cost &&
                skillTree->checkPrerequisites(skillId)) {
-        style = "background:#ff9800; color:white;";  // 可解锁 - 橙色
+        style = "background:#2196f3; color:white;";  // 可解锁 - 蓝色
     } else {
         style = "background:#757575; color:#ccc;";    // 不可解锁 - 灰色
     }
@@ -609,7 +525,6 @@ void SkillTreePage::onSkillButtonClicked() {
     if (skillTree->unlockSkill(skillId)) {
         QMessageBox::information(this, "成功", QString("已解锁技能: %1").arg(skillTree->getSkill(skillId)->name));
         refreshUI();
-        update(); // 强制重绘以更新连线
     } else {
         SkillNode* skill = skillTree->getSkill(skillId);
         if (skill && !skill->unlocked) {
