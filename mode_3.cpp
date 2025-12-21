@@ -74,6 +74,7 @@ Mode_3::Mode_3(GameBoard *board, QString username, QWidget *parent)
     m_skillEffectTimer = new QTimer(this);
     m_skillEffectTimer->setSingleShot(true);
     connect(m_skillEffectTimer, &QTimer::timeout, this, &Mode_3::onSkillEffectTimeout);
+    m_skillDialog = nullptr;
 
     // 生成初始随机小动物
     generateRandomAnimal();
@@ -765,6 +766,12 @@ void Mode_3::on_btnSkill_clicked()
         return;
     }
 
+    // 【修复】防止重复点击创建多个对话框
+    if (m_skillDialog && m_skillDialog->isVisible()) {
+        m_skillDialog->activateWindow();  // 如果已存在，则激活现有窗口
+        return;
+    }
+
     // 获取已装备且未使用的技能
     QList<SkillNode*> availableSkills;
     QList<SkillNode*> equippedSkills = m_skillTree->getEquippedSkills();
@@ -785,8 +792,15 @@ void Mode_3::on_btnSkill_clicked()
         m_gameTimer->stop();
     }
 
+    // 【修复】清理旧的对话框实例
+    if (m_skillDialog) {
+        m_skillDialog->deleteLater();
+        m_skillDialog = nullptr;
+    }
+
     // 创建技能选择对话框
-    QDialog* skillDialog = new QDialog(this);
+    m_skillDialog = new QDialog(this);
+    QDialog* skillDialog = m_skillDialog;
     skillDialog->setWindowTitle("选择技能");
     skillDialog->setFixedSize(400, 300);
     skillDialog->setWindowFlags(skillDialog->windowFlags() & ~Qt::WindowContextHelpButtonHint);
@@ -1034,6 +1048,11 @@ void Mode_3::on_btnSkill_clicked()
 
     // 连接对话框关闭事件
     connect(skillDialog, &QDialog::finished, this, [skillDialog, wasRunning, this](int result) {
+        // 【修复】对话框关闭后清理指针
+        if (skillDialog == m_skillDialog) {
+            m_skillDialog = nullptr;
+        }
+
         if (result == QDialog::Rejected && wasRunning && !m_isPaused) {
             m_gameTimer->start();
         }
@@ -1042,6 +1061,7 @@ void Mode_3::on_btnSkill_clicked()
     // 显示对话框（非模态）
     skillDialog->show();
 }
+
 // 【新增】显示临时消息函数（Mode_3专用，绿色主题）
 void Mode_3::showTempMessage(const QString& message, const QColor& color)
 {
