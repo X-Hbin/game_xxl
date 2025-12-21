@@ -35,6 +35,13 @@ private slots:
     void onBackButtonClicked();
 
 private:
+    class SkillTreeContainer : public QWidget {
+    public:
+        SkillTreeContainer(QWidget* parent = nullptr) : QWidget(parent) {}
+    protected:
+        void paintEvent(QPaintEvent* event) override;
+    };
+
     Ui::SkillTreePage *ui;
     SkillTree* skillTree;
     QMap<QString, QPushButton*> skillButtons;
@@ -42,13 +49,13 @@ private:
     QMap<QString, QPushButton*> equipButtons;
     QMap<QString, QPushButton*> unequipButtons;
     QMap<QString, QPoint> skillPositions; // 记录技能位置用于连线
+    SkillTreeContainer* skillTreeContainer; // 技能树容器
 
     void setupSkillTreeUI();
     void updateSkillButtonState(const QString& skillId);
-    void drawConnections();
 
 protected:
-    void paintEvent(QPaintEvent *event) override; // 重写paintEvent来绘制连线
+    void paintEvent(QPaintEvent *event) override;
 };
 
 #endif // SKILLTREEPAGE_H
