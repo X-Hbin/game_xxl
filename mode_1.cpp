@@ -209,6 +209,9 @@ void Mode_1::startGameSequence()
     m_isLocked = true; // 动画期间锁住
     resetSkills();
 
+    // 【新增】播放游戏过程背景音乐
+    MusicManager::instance().playSceneMusic(MusicManager::MusicScene::Playing);
+
     QLabel *lbl = new QLabel(ui->boardWidget);
     lbl->setText("Ready Go!");
     lbl->setAlignment(Qt::AlignCenter);
@@ -576,9 +579,9 @@ void Mode_1::performFallAnimation()
         int color;
     };
 
-    /* 【关键步骤 0】：先把所有幸存按钮从 QGridLayout 里“踢”出来
+    /* 【关键步骤 0】：先把所有幸存按钮从 QGridLayout 里"踢"出来
        这样它们就变成了绝对定位的悬浮控件，不再受布局限制，
-       防止布局管理器把它们强行拽回原来的格子导致“空缺”。 */
+       防止布局管理器把它们强行拽回原来的格子导致"空缺"。 */
     for (QPushButton *b : m_cells) {
         if (b) {
             m_gridLayout->removeWidget(b);
@@ -840,10 +843,16 @@ void Mode_1::playSpecialEffect(EffectType type, QPoint center, int colorCode)
 
 void Mode_1::playEliminateAnim(const QSet<QPoint>& points)
 {
-
     // 【插入计分】
     if (!points.isEmpty()) {
         addScore(points.size());
+    }
+
+    // 【新增】播放消除音效
+    // 计算消除数量并播放对应音效
+    int elimCount = points.size();
+    if (elimCount >= 3) {
+        MusicManager::instance().playMatchSound(elimCount);
     }
 
     QParallelAnimationGroup *elimGroup = new QParallelAnimationGroup(this);
@@ -942,46 +951,54 @@ void Mode_1::handleDeadlock()
 
     anim->start(QAbstractAnimation::DeleteWhenStopped);
 }
-/* 7. 新增：游戏结束结算 */
-/* mode_1.cpp - 最终版 gameOver */
+/* mode_1.cpp - 修复后的 gameOver 函数 */
 void Mode_1::gameOver()
 {
     m_isLocked = true; // 锁住游戏，防止继续操作
+
     // 【新增】停止技能效果计时器
     if (m_skillEffectTimer && m_skillEffectTimer->isActive()) {
         m_skillEffectTimer->stop();
     }
 
     // ==========================================
-    // 1. 数据库写入 (保持之前的修复逻辑)
+    // 1. 数据库写入 - 修复：保存到 game_records 表，而不是用户表
     // ==========================================
     {
         QSqlDatabase db = QSqlDatabase::database();
         if (db.isOpen()) {
             QSqlQuery q(db);
 
-            // A. 插入个人记录表
-            // 注意：表名需要加反引号 ` ` 以防特殊字符
+            // A. 插入游戏记录到 game_records 表（这是排行榜读取的表）
             QString insertSql = QString(
-                                    "INSERT INTO `%1` (mode, score, time) VALUES (?, ?, NOW())"
-                                    ).arg(m_username);
+                "INSERT INTO game_records (username, mode, score, time) VALUES (?, ?, ?, NOW())"
+                );
             q.prepare(insertSql);
-            q.addBindValue("闪电");
-            q.addBindValue(m_score);
+            q.addBindValue(m_username);
+            q.addBindValue("闪电模式");  // 完整的模式名称，与排行榜查询一致
+            q.addBindValue(m_score);    // 直接使用当前局得分
 
             if (!q.exec()) {
-                qDebug() << "DB Error (Insert Personal):" << q.lastError().text();
+                qDebug() << "DB Error (Insert to game_records):" << q.lastError().text();
+                qDebug() << "执行的SQL:" << insertSql;
+                qDebug() << "参数: username=" << m_username << ", mode=闪电模式, score=" << m_score;
+            } else {
+                qDebug() << "游戏记录保存成功: 用户=" << m_username << ", 分数=" << m_score << ", 模式=闪电模式";
             }
 
-            // B. 累加总分到 user 表
+            // B. 累加总分到 user 表（这是用户的累计积分）
             QSqlQuery qUp(db);
             qUp.prepare("UPDATE user SET points = points + ? WHERE username = ?");
             qUp.addBindValue(m_score);
             qUp.addBindValue(m_username);
 
             if (!qUp.exec()) {
-                qDebug() << "DB Error (Update Total):" << qUp.lastError().text();
+                qDebug() << "DB Error (Update user points):" << qUp.lastError().text();
+            } else {
+                qDebug() << "用户累计积分更新成功: 用户=" << m_username << ", 增加分数=" << m_score;
             }
+        } else {
+            qWarning() << "数据库连接未打开，无法保存记录";
         }
     }
 
@@ -995,17 +1012,17 @@ void Mode_1::gameOver()
     // 去掉标题栏的问号，保留关闭按钮
     dlg.setWindowFlags(dlg.windowFlags() & ~Qt::WindowContextHelpButtonHint);
 
-    // 【核心样式设计】：深色背景 + 粉色边框 + 圆角
+    // 深色背景 + 粉色边框 + 圆角
     dlg.setStyleSheet(
         "QDialog {"
-        "   background-color: #162640;"          // 深灰，但不再是纯黑
-        "   border: none;"                 // 去掉粉色边框
+        "   background-color: #162640;"          // 深灰
+        "   border: none;"
         "   border-radius: 10px;"
         "}"
         "QLabel {"
-        "   color: #ffffff;"               // 纯白文字
+        "   color: #ffffff;"
         "   font-family: 'Microsoft YaHei';"
-        "   background: transparent;"      // 去掉黑底
+        "   background: transparent;"
         "   border: none;"
         "}"
         "QPushButton {"
@@ -1043,7 +1060,6 @@ void Mode_1::gameOver()
     // ==========================================
     // 3. 执行弹窗并处理返回
     // ==========================================
-    // exec() 会阻塞代码执行，直到弹窗关闭（无论是点按钮还是点右上角X）
     dlg.exec();
 
     // 弹窗关闭后，执行这里：
@@ -1133,11 +1149,11 @@ void Mode_1::onBackButtonClicked()
 
     // 4. 根据结果处理
     if (ret == QDialog::Accepted) {
-        // === 点击了“确定” ===
+        // === 点击了"确定" ===
         // 直接触发结束信号，不写入数据库，相当于净身出户
         emit gameFinished();
     } else {
-        // === 点击了“取消” 或 叉掉了窗口 ===
+        // === 点击了"取消" 或 叉掉了窗口 ===
         // 恢复游戏
         if (wasRunning) {
             m_gameTimer->start();
@@ -1190,7 +1206,7 @@ void Mode_1::togglePause()
             //"background-color: rgba(0,0,0,100);"
             );
 
-        // 可选：可以在棋盘上覆盖一个“暂停中”的遮罩，这里为了简单只锁操作
+        // 可选：可以在棋盘上覆盖一个"暂停中"的遮罩，这里为了简单只锁操作
     }
 }
 
@@ -1218,7 +1234,7 @@ void Mode_1::on_btnUndo_clicked()
     // 1. 基本校验
     if (m_isLocked || m_isPaused) return; // 动画中或暂停时不能悔棋
     if (m_undoStack.isEmpty()) {
-        // 可以做个小动画提示“没有步骤可撤销”，或者直接忽略
+        // 可以做个小动画提示"没有步骤可撤销"，或者直接忽略
         // qDebug() << "Stack empty";
         return;
     }
@@ -1234,7 +1250,7 @@ void Mode_1::on_btnUndo_clicked()
     ui->labelScore_2->setText(QString("分数 %1").arg(m_score));
 
     // 【关键】不播放任何下落动画，直接刷新网格显示
-    // rebuildGrid 会根据 m_board->grid() 重新创建所有按钮，看起来就是“瞬间还原”
+    // rebuildGrid 会根据 m_board->grid() 重新创建所有按钮，看起来就是"瞬间还原"
     rebuildGrid();
 }
 
