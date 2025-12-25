@@ -16,6 +16,9 @@
 #include <QStack>          // 【新增】栈
 #include "gameboard.h"     // 确保包含 GameBoard 定义以使用 Grid 类型
 #include "skilltree.h"
+
+#include "musicmanager.h"
+
 class GameBoard;
 class QGridLayout;
 
