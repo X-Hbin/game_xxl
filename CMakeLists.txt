@@ -16,6 +16,26 @@ qt_add_executable(game
     mode_1.h mode_1.cpp mode_1.ui
     gameboard.h gameboard.cpp
     mode_2.h mode_2.cpp mode_2.ui
+    musicmanager.h
+    musicmanager.cpp
+    mode_3.cpp
+    mode_3.h
+    mode_3.ui
+    musicsetting.cpp
+    musicsetting.h
+    musicsetting.ui
+    skillmanager.cpp
+    skillmanager.h
+    skilltree.cpp
+    skilltree.h
+    skilltreepage.cpp
+    skilltreepage.h
+    skilltreepage.ui
+    rankmanager.cpp
+    rankmanager.h
+    rankpage.cpp
+    rankpage.h
+    rankpage.ui
 )
 
 # ② 链接时也加上 Qt6::Sql
@@ -24,6 +44,7 @@ target_link_libraries(game
         Qt6::Core
         Qt6::Widgets
         Qt6::Sql
+        winmm  # 仅新增这一行：链接Windows多媒体库，解决PlaySoundW报错
 )
 
 include(GNUInstallDirs)
