@@ -630,6 +630,13 @@ void Mode_3::on_btnUndo_clicked() {
 void Mode_3::playEliminateAnim(const QSet<QPoint>& points) {
     if (!points.isEmpty()) addScore(points.size());
 
+    // 【新增】播放消除音效
+    // 计算消除数量并播放对应音效
+    int elimCount = points.size();
+    if (elimCount >= 3) {
+        MusicManager::instance().playMatchSound(elimCount);
+    }
+
     QParallelAnimationGroup *elimGroup = new QParallelAnimationGroup(this);
     for (const QPoint &p : points) {
         int idx = p.x() * COL + p.y();
@@ -719,6 +726,10 @@ void Mode_3::startGameSequence() {
     m_isLocked = true;
     // 【新增】游戏开始时重置技能状态
     resetSkills();
+
+    // 【新增】播放游戏过程背景音乐
+    MusicManager::instance().playSceneMusic(MusicManager::MusicScene::Playing);
+
     QLabel *lbl = new QLabel(ui->boardWidget);
     lbl->setText("Ready Go!"); lbl->setStyleSheet("color:#7cffcb; font:bold 40pt 'Microsoft YaHei';");
     lbl->adjustSize();
@@ -1293,18 +1304,45 @@ void Mode_3::gameOver()
     if (m_skillEffectTimer && m_skillEffectTimer->isActive()) {
         m_skillEffectTimer->stop();
     }
-    // 1. 数据库写入
+
+    // ==========================================
+    // 1. 数据库写入 (修复分数保存问题)
+    // ==========================================
     {
         QSqlDatabase db = QSqlDatabase::database();
         if (db.isOpen()) {
+            // 插入游戏记录到 game_records 表
             QSqlQuery q(db);
-            QString insertSql = QString("INSERT INTO `%1` (mode, score, time) VALUES (?, ?, NOW())").arg(m_username);
-            q.prepare(insertSql); q.addBindValue("变身"); q.addBindValue(m_score);
-            q.exec();
+            q.prepare("INSERT INTO game_records (username, mode, score, time) "
+                      "VALUES (:username, :mode, :score, NOW())");
+            q.bindValue(":username", m_username);
+            q.bindValue(":mode", "变身模式");
+            q.bindValue(":score", m_score);
+
+            if (!q.exec()) {
+                qDebug() << "游戏记录保存失败:" << q.lastError().text();
+                qDebug() << "SQL:" << q.lastQuery();
+                qDebug() << "参数: username=" << m_username
+                         << ", mode=变身模式, score=" << m_score;
+            } else {
+                qDebug() << "游戏记录保存成功: username=" << m_username
+                         << ", mode=变身模式, score=" << m_score;
+            }
+
+            // 累加总分到 user 表
             QSqlQuery qUp(db);
-            qUp.prepare("UPDATE user SET points = points + ? WHERE username = ?");
-            qUp.addBindValue(m_score); qUp.addBindValue(m_username);
-            qUp.exec();
+            qUp.prepare("UPDATE user SET points = points + :score WHERE username = :username");
+            qUp.bindValue(":score", m_score);
+            qUp.bindValue(":username", m_username);
+
+            if (!qUp.exec()) {
+                qDebug() << "用户总分更新失败:" << qUp.lastError().text();
+            } else {
+                qDebug() << "用户总分更新成功: username=" << m_username
+                         << ", 增加分数=" << m_score;
+            }
+        } else {
+            qDebug() << "数据库连接未打开，无法保存记录";
         }
     }
 
@@ -1406,7 +1444,7 @@ void Mode_3::showSkillEndHint(const QString& message)
     // 样式：半透明，不遮挡游戏内容
     hintLabel->setStyleSheet(
         "background-color: rgba(0, 0, 0, 180);"
-        "color: #7cffcb;"  // 粉色主题
+        "color: #7cffcb;"
         "font: bold 16pt 'Microsoft YaHei';"
         "border-radius: 8px;"
         "border: 1px solid #7cffcb;"
