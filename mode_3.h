@@ -13,6 +13,8 @@
 #include "gameboard.h"
 #include "skilltree.h"
 
+#include "musicmanager.h"
+
 class QGridLayout;
 
 namespace Ui { class mode_3; }
