@@ -286,7 +286,7 @@ void Mode_2::rebuildGrid()
             btn->move(targetX, startY);
 
             // 【修复 2】初始透明度：设置为 0 (完全不可见)
-            // 这样在动画开始前，用户绝对看不到任何“虚影”
+            // 这样在动画开始前，用户绝对看不到任何"虚影"
             QGraphicsOpacityEffect *eff = new QGraphicsOpacityEffect(btn);
             eff->setOpacity(0.0);
             btn->setGraphicsEffect(eff);
@@ -540,6 +540,13 @@ void Mode_2::on_btnUndo_clicked() {
 void Mode_2::playEliminateAnim(const QSet<QPoint>& points) {
     if (!points.isEmpty()) addScore(points.size());
 
+    // 【新增】播放消除音效
+    // 计算消除数量并播放对应音效
+    int elimCount = points.size();
+    if (elimCount >= 3) {
+        MusicManager::instance().playMatchSound(elimCount);
+    }
+
     QParallelAnimationGroup *elimGroup = new QParallelAnimationGroup(this);
     for (const QPoint &p : points) {
         int idx = p.x() * COL + p.y();
@@ -635,6 +642,10 @@ void Mode_2::handleDeadlock() {
 void Mode_2::startGameSequence() {
     m_isLocked = true;
     resetSkills();
+
+    // 【新增】播放游戏过程背景音乐
+    MusicManager::instance().playSceneMusic(MusicManager::MusicScene::Playing);
+
     QLabel *lbl = new QLabel(ui->boardWidget);
     lbl->setText("Ready Go!"); lbl->setStyleSheet("color:#00e5ff; font:bold 40pt 'Microsoft YaHei';");
     lbl->adjustSize();
@@ -1177,26 +1188,50 @@ void Mode_2::onBackButtonClicked()
     }
 }
 
-/* 请替换 mode_2.cpp 中的 gameOver */
+/* mode_2.cpp - 修复后的 gameOver 函数 */
 void Mode_2::gameOver()
 {
     m_isLocked = true;
+
     // 【新增】停止技能效果计时器
     if (m_skillEffectTimer && m_skillEffectTimer->isActive()) {
         m_skillEffectTimer->stop();
     }
-    // 1. 数据库写入 (保持不变)
+
+    // 1. 数据库写入 - 修复：保存到 game_records 表
     {
         QSqlDatabase db = QSqlDatabase::database();
         if (db.isOpen()) {
             QSqlQuery q(db);
-            QString insertSql = QString("INSERT INTO `%1` (mode, score, time) VALUES (?, ?, NOW())").arg(m_username);
-            q.prepare(insertSql); q.addBindValue("旋风"); q.addBindValue(m_score);
-            q.exec();
+
+            // A. 插入游戏记录到 game_records 表
+            QString insertSql = "INSERT INTO game_records (username, mode, score, time) VALUES (?, ?, ?, NOW())";
+            q.prepare(insertSql);
+            q.addBindValue(m_username);
+            q.addBindValue("旋风模式");  // 完整的模式名称
+            q.addBindValue(m_score);
+
+            if (!q.exec()) {
+                qDebug() << "DB Error (Insert to game_records):" << q.lastError().text();
+                qDebug() << "执行的SQL:" << insertSql;
+                qDebug() << "参数: username=" << m_username << ", mode=旋风模式, score=" << m_score;
+            } else {
+                qDebug() << "游戏记录保存成功: 用户=" << m_username << ", 分数=" << m_score << ", 模式=旋风模式";
+            }
+
+            // B. 累加总分到 user 表
             QSqlQuery qUp(db);
             qUp.prepare("UPDATE user SET points = points + ? WHERE username = ?");
-            qUp.addBindValue(m_score); qUp.addBindValue(m_username);
-            qUp.exec();
+            qUp.addBindValue(m_score);
+            qUp.addBindValue(m_username);
+
+            if (!qUp.exec()) {
+                qDebug() << "DB Error (Update user points):" << qUp.lastError().text();
+            } else {
+                qDebug() << "用户累计积分更新成功: 用户=" << m_username << ", 增加分数=" << m_score;
+            }
+        } else {
+            qWarning() << "数据库连接未打开，无法保存记录";
         }
     }
 
@@ -1221,7 +1256,7 @@ void Mode_2::gameOver()
         "QPushButton {"
         "   background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #00e5ff, stop:1 #18ffff);"
         "   border-radius: 15px;"
-        "   color: black;" /* 青底黑字 */
+        "   color: black;"
         "   font: bold 14pt 'Microsoft YaHei';"
         "   height: 36px;"
         "}"
@@ -1251,6 +1286,7 @@ void Mode_2::gameOver()
     dlg.exec();
     emit gameFinished(true);
 }
+
 void Mode_2::showHint(int r, int c)
 {
     m_selR = r; m_selC = c;
