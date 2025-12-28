@@ -1,5 +1,6 @@
 #include "mode_2.h"
 #include "ui_mode_2.h"
+#include "networkmanager.h"
 #include <QGridLayout>
 #include <QMouseEvent>
 #include <QDebug>
@@ -86,6 +87,12 @@ Mode_2::Mode_2(GameBoard *board, QString username, QWidget *parent)
     connect(m_skillEffectTimer, &QTimer::timeout, this, &Mode_2::onSkillEffectTimeout);
 
     rebuildGrid();
+
+    // 获取网络管理器并更新状态为"游戏中"
+    NetworkManager *networkManager = NetworkManager::instance();
+    if (networkManager && networkManager->isConnected()) {
+        networkManager->updateUserStatus("游戏中", "旋风");
+    }
 }
 
 Mode_2::~Mode_2() { delete ui; }
@@ -685,15 +692,15 @@ void Mode_2::togglePause() {
 
 void Mode_2::on_btnSkill_clicked()
 {
+    // 1. 基础状态检查
     if (m_isLocked || m_isPaused) return;
 
     if (!m_skillTree) {
-        qDebug() << "Skill tree not initialized";
         showTempMessage("技能树未初始化", QColor(0, 229, 255));
         return;
     }
 
-    // 获取已装备且未使用的技能
+    // 2. 筛选可用技能
     QList<SkillNode*> availableSkills;
     QList<SkillNode*> equippedSkills = m_skillTree->getEquippedSkills();
     for (SkillNode* skill : equippedSkills) {
@@ -707,256 +714,213 @@ void Mode_2::on_btnSkill_clicked()
         return;
     }
 
-    // 暂停游戏
+    // 3. 暂停游戏计时
     bool wasRunning = m_gameTimer->isActive();
     if (wasRunning) {
         m_gameTimer->stop();
     }
 
-    // 创建技能选择对话框
-    QDialog* skillDialog = new QDialog(this);
-    skillDialog->setWindowTitle("选择技能");
-    skillDialog->setFixedSize(400, 300);
-    skillDialog->setWindowFlags(skillDialog->windowFlags() & ~Qt::WindowContextHelpButtonHint);
-    skillDialog->setAttribute(Qt::WA_DeleteOnClose);
+    // ============================================================
+    //  UI 重构：青色系技能面板
+    // ============================================================
 
-    // 青色主题
-    skillDialog->setStyleSheet(
-        "QDialog {"
-        "   background-color: #162640;"
-        "   border: 2px solid #00e5ff;"
-        "   border-radius: 10px;"
+    QDialog* skillDialog = new QDialog(this);
+    skillDialog->setWindowTitle("SKILL SELECT");
+    skillDialog->setFixedSize(500, 400);
+    skillDialog->setWindowFlags(Qt::FramelessWindowHint | Qt::Dialog);
+    skillDialog->setAttribute(Qt::WA_DeleteOnClose);
+    skillDialog->setAttribute(Qt::WA_TranslucentBackground);
+
+    QVBoxLayout* mainLayout = new QVBoxLayout(skillDialog);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+
+    QFrame* bgFrame = new QFrame(skillDialog);
+    mainLayout->addWidget(bgFrame);
+
+    // 【青色主题样式】
+    bgFrame->setStyleSheet(
+        "QFrame {"
+        "   background-color: rgba(22, 38, 64, 240);" // 深蓝背景
+        "   border: 2px solid #00e5ff;"               // 青色边框
+        "   border-radius: 16px;"
         "}"
-        "QLabel {"
-        "   color: #ffffff;"
-        "   font-family: 'Microsoft YaHei';"
+        "QLabel#Title {"
+        "   color: #00e5ff;"                          // 青色标题
+        "   font: bold 20pt 'Microsoft YaHei';"
+        "   border: none;"
+        "   background: transparent;"
         "}"
-        "QPushButton {"
-        "   background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #00e5ff, stop:1 #18ffff);"
-        "   border-radius: 10px;"
-        "   color: white;"
-        "   font: bold 14pt 'Microsoft YaHei';"
-        "   height: 50px;"
-        "   margin: 5px;"
-        "}"
-        "QPushButton:hover { background: #00b8d4; }"
-        "QPushButton:disabled { background: #555; color: #888; }"
         );
 
-    QVBoxLayout* layout = new QVBoxLayout(skillDialog);
+    QVBoxLayout* contentLayout = new QVBoxLayout(bgFrame);
+    contentLayout->setSpacing(15);
+    contentLayout->setContentsMargins(20, 20, 20, 20);
 
-    QLabel* title = new QLabel("选择要释放的技能:", skillDialog);
+    // 标题栏
+    QLabel* title = new QLabel("DEPLOY SKILL", bgFrame);
+    title->setObjectName("Title");
     title->setAlignment(Qt::AlignCenter);
-    title->setStyleSheet("font-size: 18pt; color: #00e5ff;");
-    layout->addWidget(title);
+    contentLayout->addWidget(title);
 
-    // 为每个可用技能创建按钮
+    // 技能网格区域
+    QGridLayout* gridLayout = new QGridLayout();
+    gridLayout->setSpacing(15);
+    contentLayout->addLayout(gridLayout);
+
+    // 【青色按钮样式】
+    QString btnStyle =
+        "QPushButton {"
+        "   background-color: rgba(255, 255, 255, 10);"
+        "   border: 1px solid rgba(0, 229, 255, 100);" // 青色半透明边框
+        "   border-radius: 8px;"
+        "   color: white;"
+        "   font: bold 12pt 'Microsoft YaHei';"
+        "   padding: 10px;"
+        "   text-align: center;"
+        "}"
+        "QPushButton:hover {"
+        // 悬停时青色渐变
+        "   background-color: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 rgba(0, 229, 255, 40), stop:1 rgba(0, 184, 212, 40));"
+        "   border: 1px solid #00e5ff;" // 悬停亮边
+        "}"
+        "QPushButton:pressed {"
+        "   background-color: rgba(0, 229, 255, 80);"
+        "   padding-top: 12px; padding-left: 12px;"
+        "}";
+
+    // 5. 循环生成技能卡片
+    int row = 0;
+    int col = 0;
+
     for (SkillNode* skill : availableSkills) {
-        QPushButton* skillBtn = new QPushButton(skill->name, skillDialog);
+        QPushButton* skillBtn = new QPushButton(skill->name, bgFrame);
         skillBtn->setToolTip(skill->description);
-        skillBtn->setObjectName(skill->id);
+        skillBtn->setMinimumHeight(60);
+        skillBtn->setCursor(Qt::PointingHandCursor);
+        skillBtn->setStyleSheet(btnStyle);
 
-        if (skill->used) {
-            skillBtn->setEnabled(false);
-        }
+        gridLayout->addWidget(skillBtn, row, col);
+        col++;
+        if (col > 1) { col = 0; row++; }
 
-        layout->addWidget(skillBtn);
-
-        // 连接按钮
         connect(skillBtn, &QPushButton::clicked, skillDialog, [this, skill, skillDialog, wasRunning]() {
             skillDialog->accept();
 
             int scoreToAdd = 0;
             int timeToAdd = 0;
-            bool needUpdateGrid = false;
             QString skillMessage;
 
-            // 执行技能效果
+            // --- 技能逻辑 (保持原有逻辑不变) ---
             if (skill->id == "row_clear") {
-                // 随机一行消除
                 int row = QRandomGenerator::global()->bounded(ROW);
-                QSet<QPoint> eliminatedPoints;
-
-                for (int c = 0; c < COL; ++c) {
-                    if (m_board->m_grid[row][c].pic != -1) {
-                        eliminatedPoints.insert(QPoint(row, c));
-                        m_board->m_grid[row][c].pic = -1;
-                    }
-                }
-
-                if (!eliminatedPoints.isEmpty()) {
-                    playEliminateAnim(eliminatedPoints);
-                }
-                needUpdateGrid = true;
+                playSpecialEffect(RowBomb, QPoint(row, 0), 0);
+                QSet<QPoint> pts;
+                for (int c = 0; c < COL; ++c) { if (m_board->m_grid[row][c].pic != -1) pts.insert(QPoint(row, c)); }
+                if (!pts.isEmpty()) playEliminateAnim(pts);
 
             } else if (skill->id == "time_extend") {
-                // 时间延长5秒
                 timeToAdd = 5;
-                skillMessage = "时间延长5秒";
+                skillMessage = "TIME +5s";
 
             } else if (skill->id == "rainbow_bomb") {
-                // 随机一种颜色消除
                 int color = QRandomGenerator::global()->bounded(6);
-                QSet<QPoint> eliminatedPoints;
-
-                for (int r = 0; r < ROW; ++r) {
-                    for (int c = 0; c < COL; ++c) {
-                        if (m_board->m_grid[r][c].pic == color) {
-                            eliminatedPoints.insert(QPoint(r, c));
-                            m_board->m_grid[r][c].pic = -1;
-                        }
-                    }
-                }
-
-                if (!eliminatedPoints.isEmpty()) {
-                    playEliminateAnim(eliminatedPoints);
-                }
-                needUpdateGrid = true;
+                playSpecialEffect(ColorClear, QPoint(ROW/2, COL/2), color);
+                QSet<QPoint> pts;
+                for (int r=0; r<ROW; ++r) { for (int c=0; c<COL; ++c) { if (m_board->m_grid[r][c].pic == color) pts.insert(QPoint(r, c)); }}
+                if (!pts.isEmpty()) playEliminateAnim(pts);
 
             } else if (skill->id == "cross_clear") {
-                // 随机十字消除
-                int centerR = QRandomGenerator::global()->bounded(ROW);
-                int centerC = QRandomGenerator::global()->bounded(COL);
-                QSet<QPoint> eliminatedPoints;
-
-                // 消除整行
-                for (int c = 0; c < COL; ++c) {
-                    if (m_board->m_grid[centerR][c].pic != -1) {
-                        eliminatedPoints.insert(QPoint(centerR, c));
-                        m_board->m_grid[centerR][c].pic = -1;
-                    }
-                }
-
-                // 消除整列
-                for (int r = 0; r < ROW; ++r) {
-                    if (m_board->m_grid[r][centerC].pic != -1) {
-                        eliminatedPoints.insert(QPoint(r, centerC));
-                        m_board->m_grid[r][centerC].pic = -1;
-                    }
-                }
-
-                if (!eliminatedPoints.isEmpty()) {
-                    playEliminateAnim(eliminatedPoints);
-                }
-                needUpdateGrid = true;
+                int cR = QRandomGenerator::global()->bounded(ROW);
+                int cC = QRandomGenerator::global()->bounded(COL);
+                playSpecialEffect(RowBomb, QPoint(cR, cC), 0);
+                playSpecialEffect(ColBomb, QPoint(cR, cC), 0);
+                QSet<QPoint> pts;
+                for (int c=0; c<COL; ++c) if (m_board->m_grid[cR][c].pic != -1) pts.insert(QPoint(cR, c));
+                for (int r=0; r<ROW; ++r) if (m_board->m_grid[r][cC].pic != -1) pts.insert(QPoint(r, cC));
+                if (!pts.isEmpty()) playEliminateAnim(pts);
 
             } else if (skill->id == "score_double") {
-                // 得分翻倍 - 持续8秒
                 m_scoreDoubleActive = true;
                 m_skillEffectTimer->start(8000);
-                skillMessage = "得分翻倍(8秒)";
+                skillMessage = "DOUBLE SCORE (8s)";
 
             } else if (skill->id == "color_unify") {
-                // 颜色统一 - 持续6秒
                 m_colorUnifyActive = true;
                 m_skillEffectTimer->start(6000);
-
-                // 立即生效：将所有方块转为3种随机颜色
-                int color1 = QRandomGenerator::global()->bounded(6);
-                int color2 = QRandomGenerator::global()->bounded(6);
-                int color3 = QRandomGenerator::global()->bounded(6);
-
-                for (int r = 0; r < ROW; ++r) {
-                    for (int c = 0; c < COL; ++c) {
-                        if (m_board->m_grid[r][c].pic != -1) {
-                            int choice = QRandomGenerator::global()->bounded(3);
-                            if (choice == 0) m_board->m_grid[r][c].pic = color1;
-                            else if (choice == 1) m_board->m_grid[r][c].pic = color2;
-                            else m_board->m_grid[r][c].pic = color3;
-                        }
-                    }
-                }
-
-                skillMessage = "颜色统一(6秒)";
-                needUpdateGrid = true;
+                playSpecialEffect(ColorClear, QPoint(0,0), 0);
+                int c1 = QRandomGenerator::global()->bounded(6);
+                int c2 = QRandomGenerator::global()->bounded(6);
+                int c3 = QRandomGenerator::global()->bounded(6);
+                for (int r=0; r<ROW; ++r) { for (int c=0; c<COL; ++c) { if (m_board->m_grid[r][c].pic != -1) {
+                            int ch = QRandomGenerator::global()->bounded(3);
+                            m_board->m_grid[r][c].pic = (ch==0?c1 : (ch==1?c2:c3));
+                        }}}
+                skillMessage = "UNIFY COLOR (6s)";
+                rebuildGrid();
 
             } else if (skill->id == "time_freeze") {
-                // 时间冻结15秒
                 timeToAdd = 15;
-                skillMessage = "时间冻结15秒";
+                skillMessage = "TIME FREEZE";
+                QLabel *flash = new QLabel(ui->boardWidget);
+                flash->setStyleSheet("background-color: rgba(0, 229, 255, 100);"); // 青色冰冻
+                flash->setGeometry(ui->boardWidget->rect());
+                flash->show(); flash->setAttribute(Qt::WA_TransparentForMouseEvents);
+                QGraphicsOpacityEffect *eff = new QGraphicsOpacityEffect(flash); flash->setGraphicsEffect(eff);
+                QPropertyAnimation *fade = new QPropertyAnimation(eff, "opacity");
+                fade->setDuration(1000); fade->setStartValue(1.0); fade->setEndValue(0.0);
+                connect(fade, &QAbstractAnimation::finished, flash, &QLabel::deleteLater); fade->start();
 
             } else if (skill->id == "ultimate_burst") {
-                // 终极爆发 - 消除所有方块
-                QSet<QPoint> eliminatedPoints;
-
-                // 【新增】设置终极爆发标志位
+                QSet<QPoint> pts;
                 m_ultimateBurstActive = true;
-
-                for (int r = 0; r < ROW; ++r) {
-                    for (int c = 0; c < COL; ++c) {
-                        if (m_board->m_grid[r][c].pic != -1) {
-                            eliminatedPoints.insert(QPoint(r, c));
-                            m_board->m_grid[r][c].pic = -1;
-                        }
-                    }
-                }
-
-                // 【修改】固定加3200分
-                int ultimateScore = 3200;
-                if (m_scoreDoubleActive) {
-                    ultimateScore *= 2;  // 如果分数翻倍激活，则翻倍
-                }
-                m_score += ultimateScore;
-                ui->labelScore_2->setText(QString("分数 %1").arg(m_score));
-
-                if (!eliminatedPoints.isEmpty()) {
-                    playEliminateAnim(eliminatedPoints);
-                }
-                needUpdateGrid = true;
+                playSpecialEffect(ColorClear, QPoint(0,0), 0);
+                for (int r=0; r<ROW; ++r) for (int c=0; c<COL; ++c) if (m_board->m_grid[r][c].pic != -1) pts.insert(QPoint(r, c));
+                int sc = 3200; if (m_scoreDoubleActive) sc*=2;
+                m_score += sc; ui->labelScore_2->setText(QString("分数 %1").arg(m_score));
+                if (!pts.isEmpty()) playEliminateAnim(pts);
             }
 
-            // 显示技能生效提示
-            if (!skillMessage.isEmpty()) {
-                showTempMessage(skillMessage, QColor(0, 229, 255));
-            }
+            if (!skillMessage.isEmpty()) showTempMessage(skillMessage, QColor(0, 229, 255)); // 青色文字
+            if (scoreToAdd > 0) { if (m_scoreDoubleActive) scoreToAdd *= 2; addScore(scoreToAdd); }
+            if (timeToAdd > 0) { m_totalTime += timeToAdd; ui->labelCountdown->setText(QString("%1:%2").arg(m_totalTime/60, 2, 10, QChar('0')).arg(m_totalTime%60, 2, 10, QChar('0'))); }
 
-            // 更新分数和时间
-            if (scoreToAdd > 0) {
-                if (m_scoreDoubleActive) {
-                    scoreToAdd *= 2;
-                }
-                addScore(scoreToAdd);
-            }
-
-            if (timeToAdd > 0) {
-                m_totalTime += timeToAdd;
-                ui->labelCountdown->setText(QString("%1:%2")
-                                                .arg(m_totalTime/60, 2, 10, QChar('0'))
-                                                .arg(m_totalTime%60, 2, 10, QChar('0')));
-            }
-
-            // 标记技能已使用
             skill->used = true;
-
-            // 如果棋盘有变化，触发更新
-            if (needUpdateGrid) {
-                QTimer::singleShot(100, this, [this]() {
-                    performFallAnimation();
-                });
-            }
-
-            // 恢复游戏
-            if (wasRunning && !m_isPaused) {
-                m_gameTimer->start();
-            }
+            if (wasRunning && !m_isPaused) m_gameTimer->start();
         });
     }
 
-    QPushButton* cancelBtn = new QPushButton("取消", skillDialog);
-    cancelBtn->setStyleSheet("background: #757575;");
+    contentLayout->addStretch();
+
+    // 底部取消按钮
+    QPushButton* cancelBtn = new QPushButton("CANCEL", bgFrame);
+    cancelBtn->setCursor(Qt::PointingHandCursor);
+    cancelBtn->setStyleSheet(
+        "QPushButton {"
+        "   background-color: rgba(0, 0, 0, 80);"
+        "   border: 1px solid #555;"
+        "   border-radius: 8px;"
+        "   color: #aaa;"
+        "   font: 10pt 'Microsoft YaHei';"
+        "   height: 30px;"
+        "}"
+        "QPushButton:hover {"
+        "   background-color: rgba(0, 229, 255, 40);" // 悬停变青色微光
+        "   border: 1px solid #00e5ff;"
+        "   color: white;"
+        "}"
+        );
+    contentLayout->addWidget(cancelBtn);
+
     connect(cancelBtn, &QPushButton::clicked, skillDialog, [skillDialog, wasRunning, this]() {
         skillDialog->reject();
     });
-    layout->addWidget(cancelBtn);
 
-    // 连接对话框关闭事件
     connect(skillDialog, &QDialog::finished, this, [skillDialog, wasRunning, this](int result) {
         if (result == QDialog::Rejected && wasRunning && !m_isPaused) {
             m_gameTimer->start();
         }
     });
 
-    // 显示对话框（非模态）
     skillDialog->show();
 }
 
@@ -1182,6 +1146,10 @@ void Mode_2::onBackButtonClicked()
     int ret = dlg.exec();
 
     if (ret == QDialog::Accepted) {
+        NetworkManager *networkManager = NetworkManager::instance();
+        if (networkManager && networkManager->isConnected()) {
+            networkManager->updateUserStatus("在线", "空闲");
+        }
         emit gameFinished();
     } else {
         if (wasRunning) m_gameTimer->start();
@@ -1229,6 +1197,11 @@ void Mode_2::gameOver()
                 qDebug() << "DB Error (Update user points):" << qUp.lastError().text();
             } else {
                 qDebug() << "用户累计积分更新成功: 用户=" << m_username << ", 增加分数=" << m_score;
+            }
+
+            NetworkManager *networkManager = NetworkManager::instance();
+            if (networkManager && networkManager->isConnected()) {
+                networkManager->updateUserStatus("在线", "空闲");
             }
         } else {
             qWarning() << "数据库连接未打开，无法保存记录";

@@ -30,6 +30,12 @@ MainWindow::MainWindow(QWidget *parent)
     if (!openDB())
         QMessageBox::critical(this, "数据库", "无法连接到 MySQL！");
 
+    // 初始化网络管理器
+    m_networkManager = NetworkManager::instance();
+    connect(m_networkManager, &NetworkManager::loginResult, this, &MainWindow::onLoginResult);
+    connect(m_networkManager, &NetworkManager::connectionError, this, &MainWindow::onNetworkError);
+    connect(m_networkManager, &NetworkManager::serverMessage, this, &MainWindow::onServerMessage);
+
     // 1. 取下原中央控件（不销毁）
     QWidget *oldCentral = takeCentralWidget();   // 脱离主窗口
 
@@ -69,6 +75,9 @@ MainWindow::MainWindow(QWidget *parent)
     // 程序启动时播放登录界面的背景音乐
     qDebug() << "程序启动，播放登录界面音乐...";
     MusicManager::instance().playSceneMusic(MusicManager::MusicScene::Loading);
+
+    // 连接AI演示信号
+    connect(menuPage, &Menu::startAIDemoRequested, this, &MainWindow::onAIDemoStart);
 }
 
 MainWindow::~MainWindow()
@@ -81,13 +90,11 @@ bool MainWindow::openDB()
 {
     qDebug() << "Available SQL drivers:" << QSqlDatabase::drivers();
     db = QSqlDatabase::addDatabase("QMYSQL");
-
-    db = QSqlDatabase::addDatabase("QMYSQL");
-    db.setHostName("127.0.0.1");
+    db.setHostName("127.0.0.1");   // 本地
     db.setPort(3306);
-    db.setDatabaseName("game");
-    db.setUserName("root");
-    db.setPassword("562134XhF");
+    db.setDatabaseName("game");    // 你的库名
+    db.setUserName("bank");        // 改成你的账号
+    db.setPassword("210507377Qq@");      // 改成你的密码
 
     if (!db.open()) {
         qDebug() << "MySQL error:" << db.lastError().text();
@@ -170,32 +177,61 @@ void MainWindow::on_pushButtonLogin_clicked()
         return;
     }
 
+    // 先进行本地数据库验证
     QSqlQuery q(db);
     q.prepare("SELECT password, skill_points FROM user WHERE username=?");
     q.addBindValue(user);
-    if (!q.exec() || !q.next()) {
+
+    if (!q.exec()) {
+        qDebug() << "数据库查询错误:" << q.lastError().text();
+        QMessageBox::warning(this, "登录", "数据库查询错误！");
+        return;
+    }
+
+    if (!q.next()) {
         QMessageBox::warning(this, "登录", "该用户不存在！");
         return;
     }
 
     QString dbPwd = q.value(0).toString();
+    qDebug() << "本地数据库密码:" << dbPwd;
+    qDebug() << "输入密码:" << pwd;
 
-    if (dbPwd == pwd){
-        m_currentUser = user;
-
-        // 加载技能树数据
-        m_skillTree->loadFromDatabase(m_currentUser);
-
-        // 更新排行榜页面的用户名
-        m_rankPage->setUsername(m_currentUser);
-
-        // 切换到菜单页面时，切换背景音乐到菜单场景
-        qDebug() << "登录成功，切换到菜单音乐...";
-        MusicManager::instance().playSceneMusic(MusicManager::MusicScene::Menu);
-
-        stack->setCurrentIndex(1);
-    } else {
+    if (dbPwd != pwd) {
         QMessageBox::warning(this, "登录", "密码错误！");
+        return;
+    }
+
+    // 本地验证通过，记录当前用户
+    m_currentUser = user;
+
+    // 加载技能树数据
+    m_skillTree->loadFromDatabase(m_currentUser);
+
+    // 更新排行榜页面的用户名
+    m_rankPage->setUsername(m_currentUser);
+
+    // 切换到菜单页面
+    stack->setCurrentIndex(1);
+
+    // 显示登录成功消息
+    ui->statusbar->showMessage("登录成功！", 3000);
+
+    // 切换到菜单页面时，切换背景音乐到菜单场景
+    qDebug() << "登录成功，切换到菜单音乐...";
+    MusicManager::instance().playSceneMusic(MusicManager::MusicScene::Menu);
+
+    // 尝试连接服务器（但不阻止登录成功）
+    NetworkManager *networkManager = NetworkManager::instance();
+    if (networkManager->connectToServer()) {
+        // 发送网络登录请求
+        networkManager->login(user, pwd);
+        qDebug() << "发送网络登录请求:" << user;
+    } else {
+        qDebug() << "无法连接到服务器，继续本地模式";
+        QMessageBox::information(this, "网络提示",
+                                 "无法连接到游戏服务器，将使用本地单机模式。\n"
+                                 "联机对战功能将不可用。");
     }
 }
 
@@ -252,7 +288,7 @@ void MainWindow::onStartGame(const QString &mode)
     if (m_mode3Page) { stack->removeWidget(m_mode3Page); delete m_mode3Page; m_mode3Page = nullptr; }
 
     m_gameBoard = new GameBoard(this);
-    m_gameBoard->initNoThree();
+    m_gameBoard->initNoThree(); // 初始化逻辑通用
 
     m_currentGameMode = mode;
 
@@ -263,6 +299,7 @@ void MainWindow::onStartGame(const QString &mode)
     if (mode == "闪电"){
         this->setStyleSheet("background:qradialgradient(cx:0.5 cy:0.5 radius:1.2, fx:0.5 fy:0.5, stop:0 rgba(61, 44, 98, 180), stop:1 #0f1029);");
         m_mode1Page = new Mode_1(m_gameBoard, m_currentUser, this);
+        // 传递技能树给游戏模式
         m_mode1Page->setSkillTree(m_skillTree);
         connect(m_mode1Page, &Mode_1::gameFinished, this, &MainWindow::onGameFinished);
         stack->addWidget(m_mode1Page);
@@ -277,12 +314,13 @@ void MainWindow::onStartGame(const QString &mode)
             "stop:1 #000000);");
 
         m_mode2Page = new Mode_2(m_gameBoard, m_currentUser, this);
+        // 传递技能树给游戏模式
         m_mode2Page->setSkillTree(m_skillTree);
         connect(m_mode2Page, &Mode_2::gameFinished, this, &MainWindow::onGameFinished);
         stack->addWidget(m_mode2Page);
         stack->setCurrentWidget(m_mode2Page);
     }
-    else if (mode == "变身") {
+    else if (mode == "霓虹") {
         this->setStyleSheet(
             "background: qradialgradient(cx:0.5 cy:0.5 radius:1.4,"
             "fx:0.5 fy:0.5,"
@@ -291,6 +329,7 @@ void MainWindow::onStartGame(const QString &mode)
             "stop:1 #000000);");
 
         m_mode3Page = new Mode_3(m_gameBoard, m_currentUser, this);
+        // 传递技能树给游戏模式
         m_mode3Page->setSkillTree(m_skillTree);
         connect(m_mode3Page, &Mode_3::gameFinished, this, &MainWindow::onGameFinished);
         stack->addWidget(m_mode3Page);
@@ -300,43 +339,6 @@ void MainWindow::onStartGame(const QString &mode)
 
 void MainWindow::onGameFinished(bool isNormalEnd)
 {
-    // 在销毁游戏页面之前，先保存游戏记录
-    if (isNormalEnd) {
-        int finalScore = 0;
-        QString fullModeName;
-
-        // 根据当前游戏模式获取分数和完整模式名
-        if (m_mode1Page && m_currentGameMode == "闪电") {
-            finalScore = 100; // 临时值，需要根据实际游戏逻辑修改
-            fullModeName = "闪电模式";
-
-            // 给玩家5点技能点
-            m_skillTree->addSkillPoints(5);
-        }
-        else if (m_mode2Page && m_currentGameMode == "旋风") {
-            finalScore = 100; // 临时值，需要根据实际游戏逻辑修改
-            fullModeName = "旋风模式";
-
-            // 给玩家5点技能点
-            m_skillTree->addSkillPoints(5);
-        }
-        else if (m_mode3Page && m_currentGameMode == "变身") {
-            finalScore = 100; // 临时值，需要根据实际游戏逻辑修改
-            fullModeName = "变身模式";
-
-            // 给玩家5点技能点
-            m_skillTree->addSkillPoints(5);
-        }
-
-        // 保存游戏记录到数据库
-        if (finalScore > 0 && !fullModeName.isEmpty()) {
-            saveGameRecord(m_currentUser, finalScore, fullModeName);
-        }
-
-        // 保存技能树状态
-        m_skillTree->saveToDatabase(m_currentUser);
-    }
-
     /* 换回背景图 */
     QPixmap bg("background.jpg");
     if (!bg.isNull()) {
@@ -344,13 +346,19 @@ void MainWindow::onGameFinished(bool isNormalEnd)
         palette.setBrush(QPalette::Window, bg.scaled(size(), Qt::IgnoreAspectRatio));
         setAutoFillBackground(true);
         setPalette(palette);
-        setStyleSheet("");
+        setStyleSheet("");          // 清空之前游戏里的渐变样式
     } else {
         setStyleSheet("background-color: #2b2b2b;");
     }
 
-    // 切换回菜单页面时，切换背景音乐到菜单场景
-    qDebug() << "游戏结束，切换回菜单音乐...";
+    if (isNormalEnd) {
+        // 游戏结束后给玩家5点技能点（仅在正常结束时）
+        m_skillTree->addSkillPoints(5);
+        // 保存技能树状态到数据库
+        m_skillTree->saveToDatabase(m_currentUser);
+    }
+
+    // 切换回菜单音乐
     MusicManager::instance().playSceneMusic(MusicManager::MusicScene::Menu);
 
     // 切回菜单
@@ -373,11 +381,65 @@ void MainWindow::onGameFinished(bool isNormalEnd)
         m_mode3Page = nullptr;
     }
 
-    // 如果游戏正常结束，刷新排行榜（如果当前在排行榜页面）
-    if (isNormalEnd) {
-        // 更新排行榜数据
+    if (isNormalEnd && m_rankPage) {
         m_rankPage->refreshRankings();
     }
+}
+
+void MainWindow::onSkillTreeBack()
+{
+    // 保存技能树状态
+    m_skillTree->saveToDatabase(m_currentUser);
+
+    // 返回菜单页面
+    stack->setCurrentIndex(1);
+
+    // 刷新技能树页面显示（如果需要）
+    m_skillTreePage->refreshUI();
+}
+
+void MainWindow::switchToSkillTreePage()
+{
+    if (m_skillTreePage) {
+        // 刷新技能树页面显示
+        m_skillTreePage->refreshUI();
+        // 切换到技能树页面
+        stack->setCurrentWidget(m_skillTreePage);
+    }
+}
+
+// 切换到排行榜页面
+void MainWindow::switchToRankPage()
+{
+    qDebug() << "切换到排行榜页面";
+    this->setStyleSheet(
+        "QMainWindow { background: qradialgradient(cx:0.5, cy:0.5, radius:1.0, "
+        "fx:0.5, fy:0.5, "
+        "stop:0 #1a0b2e, "   // 中心深紫
+        "stop:0.6 #110520, "
+        "stop:1 #000000); }"
+        );
+
+    m_rankPage->refreshRankings();
+    stack->setCurrentWidget(m_rankPage);
+}
+
+// 从排行榜返回
+void MainWindow::onRankPageBack()
+{
+    // 恢复默认背景 (图片或颜色)
+    QPixmap bg("background.jpg");
+    if (!bg.isNull()) {
+        QPalette palette;
+        palette.setBrush(QPalette::Window, bg.scaled(size(), Qt::IgnoreAspectRatio));
+        setAutoFillBackground(true);
+        setPalette(palette);
+        setStyleSheet(""); // 清除排行榜的渐变样式
+    } else {
+        setStyleSheet("background-color: #2b2b2b;");
+    }
+
+    stack->setCurrentIndex(1); // 返回菜单
 }
 
 void MainWindow::saveGameRecord(const QString& username, int score, const QString& mode)
@@ -405,7 +467,7 @@ void MainWindow::saveGameRecord(const QString& username, int score, const QStrin
     QString shortMode = mode;
     if (mode == "闪电模式") shortMode = "闪电";
     else if (mode == "旋风模式") shortMode = "旋风";
-    else if (mode == "变身模式") shortMode = "变身";
+    else if (mode == "霓虹模式") shortMode = "霓虹";
 
     q2.addBindValue(shortMode);
     q2.addBindValue(score);
@@ -415,36 +477,90 @@ void MainWindow::saveGameRecord(const QString& username, int score, const QStrin
     }
 }
 
-void MainWindow::onSkillTreeBack()
+// 新增：处理网络登录结果
+void MainWindow::onLoginResult(bool success, const QString &message, const QJsonObject &userData)
 {
-    // 保存技能树状态
-    m_skillTree->saveToDatabase(m_currentUser);
+    if (success) {
+        m_currentUser = m_networkManager->getUsername(); // 从网络管理器获取用户名
 
-    // 返回菜单页面
-    stack->setCurrentIndex(1);
+        // 加载技能树数据
+        m_skillTree->loadFromDatabase(m_currentUser);
 
-    // 刷新技能树页面显示
-    m_skillTreePage->refreshUI();
-}
+        // 更新排行榜页面的用户名
+        m_rankPage->setUsername(m_currentUser);
 
-void MainWindow::onRankPageBack()
-{
-    // 返回菜单页面
-    stack->setCurrentIndex(1);
-}
+        // 切换到菜单页面
+        stack->setCurrentIndex(1);
 
-void MainWindow::switchToSkillTreePage()
-{
-    if (m_skillTreePage) {
-        m_skillTreePage->refreshUI();
-        stack->setCurrentWidget(m_skillTreePage);
+        // 显示欢迎消息
+        ui->statusbar->showMessage("登录成功！已连接到服务器", 3000);
+
+        // 切换到菜单页面时，切换背景音乐到菜单场景
+        qDebug() << "网络登录成功，切换到菜单音乐...";
+        MusicManager::instance().playSceneMusic(MusicManager::MusicScene::Menu);
+
+        // 保存用户数据（如果需要）
+        qDebug() << "用户数据:" << userData;
+    } else {
+        QMessageBox::warning(this, "登录失败", message);
+        ui->statusbar->showMessage("登录失败: " + message, 3000);
     }
 }
 
-void MainWindow::switchToRankPage()
+// 新增：处理网络错误
+void MainWindow::onNetworkError(const QString &error)
 {
-    if (m_rankPage) {
-        m_rankPage->refreshRankings();
-        stack->setCurrentWidget(m_rankPage);
-    }
+    QMessageBox::warning(this, "网络错误", error);
+}
+
+// 新增：处理服务器消息
+void MainWindow::onServerMessage(const QString &type, const QJsonObject &data)
+{
+    qDebug() << "收到服务器消息:" << type << data;
+}
+
+// 实现AI演示模式槽函数
+void MainWindow::onAIDemoStart()
+{
+    // 清理旧页面
+    if (m_gameBoard) { delete m_gameBoard; m_gameBoard = nullptr; }
+    if (m_modeAIPage) { stack->removeWidget(m_modeAIPage); delete m_modeAIPage; m_modeAIPage = nullptr; }
+
+    m_gameBoard = new GameBoard(this);
+    m_gameBoard->initNoThree();
+
+    // 切换样式为类似霓虹/科技风，区别于普通模式
+    this->setStyleSheet(
+        "background: qradialgradient(cx:0.5 cy:0.5 radius:1.4,"
+        "fx:0.5 fy:0.3,"
+        "stop:0 #0d3742,"
+        "stop:0.55 #051d24,"
+        "stop:1 #000000);");
+    m_modeAIPage = new Mode_AI(m_gameBoard, this);
+
+    // 连接 AI 模式的结束信号
+    connect(m_modeAIPage, &Mode_AI::gameFinished, this, [this](){
+        // 恢复主菜单背景
+        QPixmap bg("background.jpg");
+        if (!bg.isNull()) {
+            QPalette palette;
+            palette.setBrush(QPalette::Window, bg.scaled(size(), Qt::IgnoreAspectRatio));
+            setAutoFillBackground(true);
+            setPalette(palette);
+            setStyleSheet("");
+        }
+
+        MusicManager::instance().playSceneMusic(MusicManager::MusicScene::Menu);
+
+        // 移除 AI 页面
+        if (m_modeAIPage) {
+            stack->removeWidget(m_modeAIPage);
+            m_modeAIPage->deleteLater();
+            m_modeAIPage = nullptr;
+        }
+        stack->setCurrentIndex(1); // 回到菜单
+    });
+
+    stack->addWidget(m_modeAIPage);
+    stack->setCurrentWidget(m_modeAIPage);
 }

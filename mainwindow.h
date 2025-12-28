@@ -14,9 +14,11 @@
 #include "skilltree.h"
 #include "skilltreepage.h"
 #include "rankpage.h"
+#include "networkmanager.h"
+#include "musicmanager.h"
 
 #include "mode_2.h"
-#include "musicmanager.h"
+#include "mode_ai.h"
 
 class Mode_1;
 class Mode_3;
@@ -34,6 +36,8 @@ public:
     ~MainWindow();
     void switchToSkillTreePage();
     void switchToRankPage();
+    QString getCurrentUsername() const { return m_currentUser; }
+    SkillTree* getSkillTree() const { return m_skillTree; }
 
 private slots:
     void on_pushButtonLogin_clicked();
@@ -42,7 +46,12 @@ private slots:
     void onGameFinished(bool isNormalEnd = false);
     void onSkillTreeBack();
     void onRankPageBack();
-    // 删除了 on_pushButtonMusic_clicked()
+    void onAIDemoStart();
+
+    // 网络相关槽函数
+    void onLoginResult(bool success, const QString &message, const QJsonObject &userData);
+    void onNetworkError(const QString &error);
+    void onServerMessage(const QString &type, const QJsonObject &data);
 
 private:
     Ui::MainWindow *ui;
@@ -57,14 +66,22 @@ private:
     Mode_2 *m_mode2Page = nullptr;
     Mode_3 *m_mode3Page = nullptr;
 
+    // 网络管理器
+    NetworkManager *m_networkManager = nullptr;
+
+    // 技能树相关
     SkillTree *m_skillTree = nullptr;
     SkillTreePage *m_skillTreePage = nullptr;
 
+    // 排行榜相关
     RankPage *m_rankPage = nullptr;
     RankManager *m_rankManager = nullptr;
 
     QString m_currentUser;
     QString m_currentGameMode;
+
+    // AI演示模式
+    Mode_AI *m_modeAIPage = nullptr;
 };
 
 #endif // MAINWINDOW_H

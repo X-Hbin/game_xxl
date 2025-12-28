@@ -14,27 +14,25 @@
    <string>排行榜</string>
   </property>
   <property name="styleSheet">
-   <string notr="true">background-color: #000000;</string>
+   <string notr="true"/>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
     <widget class="QLabel" name="titleLabel">
      <property name="styleSheet">
-      <string notr="true">font: 700 28pt 'Microsoft YaHei'; color: #ff9de0; background: transparent;</string>
+      <string notr="true">font: 700 28pt 'Microsoft YaHei'; color: #ff9de0; background: transparent;
+</string>
      </property>
      <property name="text">
       <string>游戏排行榜</string>
      </property>
      <property name="alignment">
-      <set>Qt::AlignmentFlag::AlignCenter</set>
+      <set>Qt::AlignCenter</set>
      </property>
     </widget>
    </item>
    <item>
     <widget class="QTabWidget" name="tabWidget">
-     <property name="currentIndex">
-      <number>0</number>
-     </property>
      <property name="styleSheet">
       <string notr="true">QTabWidget::pane {
     border: 1px solid #444444;
@@ -56,6 +54,9 @@ QTabBar::tab:selected {
 QTabBar::tab:hover {
     background-color: #2a2a2a;
 }</string>
+     </property>
+     <property name="currentIndex">
+      <number>0</number>
      </property>
      <widget class="QWidget" name="mode1Tab">
       <attribute name="title">
@@ -177,7 +178,7 @@ QTableWidget QTableCornerButton::section {
      </widget>
      <widget class="QWidget" name="mode3Tab">
       <attribute name="title">
-       <string>变身模式</string>
+       <string>霓虹模式</string>
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_4">
        <item>

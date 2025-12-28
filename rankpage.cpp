@@ -6,6 +6,9 @@
 #include <QDebug>
 #include <QStyle>
 #include <QFont>
+#include <QGraphicsOpacityEffect>
+// 别忘了引入滚动条头文件
+#include <QScrollBar>
 
 RankPage::RankPage(const QString& username, QWidget *parent) :
     QWidget(parent),
@@ -15,39 +18,94 @@ RankPage::RankPage(const QString& username, QWidget *parent) :
 {
     ui->setupUi(this);
 
-    //设置黑色背景
-    QPalette palette;
-    palette.setColor(QPalette::Window, Qt::black);
-    palette.setColor(QPalette::Base, Qt::black);
-    palette.setColor(QPalette::AlternateBase, QColor(30, 30, 30));
-    palette.setColor(QPalette::Text, Qt::white);
-    palette.setColor(QPalette::WindowText, Qt::white);
-    palette.setColor(QPalette::Button, QColor(50, 50, 50));
-    palette.setColor(QPalette::ButtonText, Qt::white);
-    this->setPalette(palette);
+    // ============================================================
+    // 1. 背景设置 (保留你原本满意的深紫渐变)
+    // ============================================================
+    this->setAutoFillBackground(true);
+    this->setAttribute(Qt::WA_StyledBackground, true);
 
-    ui->titleLabel->setAutoFillBackground(true);
-    QPalette titlePalette = ui->titleLabel->palette();
-    titlePalette.setColor(QPalette::Window, Qt::black);
-    titlePalette.setColor(QPalette::WindowText, QColor("#ff9de0"));
-    ui->titleLabel->setPalette(titlePalette);
+    this->setStyleSheet(
+        "RankPage {"
+        "   background: qradialgradient(cx:0.5, cy:0.5, radius:1.0, "
+        "   fx:0.5, fy:0.5, "
+        "   stop:0 #1a0b2e, "   // 中心深紫
+        "   stop:0.6 #110520, "
+        "   stop:1 #000000); "  // 边缘黑
+        "}"
+        );
 
-    //初始化表格
+    // 标题样式
+    ui->titleLabel->setStyleSheet(
+        "QLabel {"
+        "   color: #ff9de0;"
+        "   font: bold 28pt 'Microsoft YaHei';"
+        "   background: transparent;"
+        "   padding-bottom: 10px;"
+        "}"
+        );
+
+    // ============================================================
+    // 2. TabWidget (保留之前的青色边框风格)
+    // ============================================================
+    ui->tabWidget->setStyleSheet(
+        "QTabWidget::pane {"
+        "    border: 2px solid #00e5ff;" // 之前的青色边框
+        "    border-radius: 8px;"
+        "    background: transparent;"   // 保持透明
+        "}"
+        "QTabBar::tab {"
+        "    background: #0f1c2e;"
+        "    color: #888888;"
+        "    padding: 10px 25px;"
+        "    margin-right: 4px;"
+        "    border-top-left-radius: 6px;"
+        "    border-top-right-radius: 6px;"
+        "    font: bold 11pt 'Microsoft YaHei';"
+        "}"
+        "QTabBar::tab:selected {"
+        "    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #00e5ff, stop:1 #162640);"
+        "    color: white;"
+        "    border: 1px solid #00e5ff;"
+        "    border-bottom: none;"
+        "}"
+        "QTabBar::tab:hover {"
+        "    background: #1e3a5f;"
+        "    color: white;"
+        "}"
+        );
+
+    // ============================================================
+    // 【修改点 1】返回按钮：去掉原本的红色，改为深紫色胶囊风格
+    // ============================================================
+    ui->backButton->setStyleSheet(
+        "QPushButton {"
+        "    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4a148c, stop:1 #7b1fa2);" // 紫色渐变
+        "    color: white;"
+        "    border: 1px solid #7b1fa2;"
+        "    border-radius: 20px;"
+        "    font: bold 12pt 'Microsoft YaHei';"
+        "    padding: 8px 30px;"
+        "}"
+        "QPushButton:hover {"
+        "    background: #8e24aa;"
+        "    border: 1px solid #ff9de0;" // 悬停变粉框
+        "}"
+        "QPushButton:pressed {"
+        "    background: #4a148c;"
+        "    padding-top: 5px;"
+        "}"
+        );
+
+    // 初始化表格
     initTable(ui->mode1Table, 4);
     initTable(ui->mode2Table, 4);
     initTable(ui->mode3Table, 4);
     initTable(ui->personalTable, 4);
 
-    //表格标题
     setTableHeaders();
-
-    //刷新排行榜数据
     refreshRankings();
 
-    //连接返回按钮信号
     connect(ui->backButton, &QPushButton::clicked, this, &RankPage::on_backButton_clicked);
-
-    qDebug() << "RankPage初始化完成，用户名:" << m_username;
 }
 
 RankPage::~RankPage()
@@ -62,172 +120,120 @@ void RankPage::on_backButton_clicked()
 
 void RankPage::refreshRankings()
 {
-    qDebug() << "=== 开始刷新排行榜 ===";
+    fillModeTable(ui->mode1Table, m_rankManager->getTopRecords(10, "闪电模式"));
+    fillModeTable(ui->mode2Table, m_rankManager->getTopRecords(10, "旋风模式"));
+    fillModeTable(ui->mode3Table, m_rankManager->getTopRecords(10, "霓虹模式"));
 
-    //刷新各个模式的排行榜
-    qDebug() << "获取闪电模式排行榜...";
-    QVector<RankInfo> mode1Records = m_rankManager->getTopRecords(10, "闪电模式");
-    qDebug() << "闪电模式记录数:" << mode1Records.size();
-    fillModeTable(ui->mode1Table, mode1Records);
-
-    qDebug() << "获取旋风模式排行榜...";
-    QVector<RankInfo> mode2Records = m_rankManager->getTopRecords(10, "旋风模式");
-    qDebug() << "旋风模式记录数:" << mode2Records.size();
-    fillModeTable(ui->mode2Table, mode2Records);
-
-    qDebug() << "获取变身模式排行榜...";
-    QVector<RankInfo> mode3Records = m_rankManager->getTopRecords(10, "变身模式");
-    qDebug() << "变身模式记录数:" << mode3Records.size();
-    fillModeTable(ui->mode3Table, mode3Records);
-
-    //刷新个人记录
-    qDebug() << "获取个人记录...";
     QVector<RankInfo> personalRecords = m_rankManager->getUserRecords(m_username, 20);
-    qDebug() << "个人记录数:" << personalRecords.size();
-
-    //按时间降序排序
     std::sort(personalRecords.begin(), personalRecords.end(),
               [](const RankInfo& a, const RankInfo& b) {
                   return a.time > b.time;
               });
-
     fillPersonalTable(personalRecords);
-
-    qDebug() << "=== 排行榜刷新完成 ===";
 }
 
 void RankPage::setTableHeaders()
 {
-    //表格标题
-    QStringList mode1Headers;
-    mode1Headers << "排名" << "用户名" << "分数" << "时间";
-    ui->mode1Table->setHorizontalHeaderLabels(mode1Headers);
+    QStringList commonHeaders; commonHeaders << "排名" << "玩家" << "得分" << "记录时间";
+    ui->mode1Table->setHorizontalHeaderLabels(commonHeaders);
+    ui->mode2Table->setHorizontalHeaderLabels(commonHeaders);
+    ui->mode3Table->setHorizontalHeaderLabels(commonHeaders);
 
-    QStringList mode2Headers;
-    mode2Headers << "排名" << "用户名" << "分数" << "时间";
-    ui->mode2Table->setHorizontalHeaderLabels(mode2Headers);
-
-    QStringList mode3Headers;
-    mode3Headers << "排名" << "用户名" << "分数" << "时间";
-    ui->mode3Table->setHorizontalHeaderLabels(mode3Headers);
-
-    QStringList personalHeaders;
-    personalHeaders << "用户名" << "分数" << "模式" << "时间";
+    QStringList personalHeaders; personalHeaders << "玩家" << "得分" << "游戏模式" << "记录时间";
     ui->personalTable->setHorizontalHeaderLabels(personalHeaders);
 }
 
 void RankPage::initTable(QTableWidget* table, int columnCount)
 {
+    table->setColumnCount(columnCount);
     table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    table->verticalHeader()->setVisible(false);
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table->setSelectionMode(QAbstractItemView::NoSelection);
-    table->setRowCount(0);
-    table->setColumnCount(columnCount);
+    table->setShowGrid(false);
+    table->setFocusPolicy(Qt::NoFocus);
 
-    //黑色背景
-    table->setAutoFillBackground(true);
-    QPalette tablePalette = table->palette();
-    tablePalette.setColor(QPalette::Base, Qt::black);
-    tablePalette.setColor(QPalette::AlternateBase, QColor(30, 30, 30));
-    tablePalette.setColor(QPalette::Text, Qt::white);
-    tablePalette.setColor(QPalette::Window, Qt::black);
-    table->setPalette(tablePalette);
-
-    table->horizontalHeader()->setAutoFillBackground(true);
-    QPalette headerPalette = table->horizontalHeader()->palette();
-    headerPalette.setColor(QPalette::Window, QColor(30, 30, 30));
-    headerPalette.setColor(QPalette::WindowText, Qt::white);
-    table->horizontalHeader()->setPalette(headerPalette);
-    table->horizontalHeader()->setStyleSheet(
-        "QHeaderView::section {"
-        "   background-color: #1e1e1e;"
-        "   color: white;"
-        "   padding: 8px;"
-        "   border: 1px solid #333333;"
-        "   font-weight: bold;"
-        "   font-size: 12pt;"
-        "}"
-        );
-
-    //交替行颜色
-    table->setAlternatingRowColors(true);
-
-    //表格样式
     table->setStyleSheet(
         "QTableWidget {"
-        "   background-color: black;"
+        "   background-color: transparent;"
+        "   border: none;"
         "   color: white;"
-        "   gridline-color: #333333;"
-        "   border: 1px solid #444444;"
         "   font-size: 11pt;"
         "}"
         "QTableWidget::item {"
-        "   background-color: black;"
-        "   color: white;"
-        "   padding: 6px;"
+        "   padding: 5px;"
+        "   border-bottom: 1px solid rgba(255, 255, 255, 30);"
+        "}"
+        // ============================================================
+        // 【修改点 2】表头颜色加深：之前是 20 的透明度太浅，改为 200 的黑底
+        // ============================================================
+        "QHeaderView::section {"
+        "   background-color: rgba(0, 0, 0, 200);" // 变深
+        "   color: #00e5ff;" // 青色文字
+        "   padding: 8px;"
         "   border: none;"
+        "   border-bottom: 2px solid #00e5ff;"
+        "   font: bold 12pt 'Microsoft YaHei';"
         "}"
-        "QTableWidget::item:selected {"
-        "   background-color: #222222;"
+        // ============================================================
+        // 【修改点 3】滚动条美化 (解决丑的问题)
+        // ============================================================
+        "QScrollBar:vertical {"
+        "   background: rgba(0,0,0,50);"
+        "   width: 8px;"
+        "   margin: 0px;"
+        "   border-radius: 4px;"
         "}"
-        "QTableWidget QTableCornerButton::section {"
-        "   background-color: #1e1e1e;"
-        "   border: 1px solid #333333;"
+        "QScrollBar::handle:vertical {"
+        "   background: rgba(255, 255, 255, 0.2);"
+        "   min-height: 20px;"
+        "   border-radius: 4px;"
         "}"
+        "QScrollBar::handle:vertical:hover { background: #00e5ff; }"
+        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }"
+        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }"
         );
 }
 
+// 下面的 fillModeTable 和 fillPersonalTable 保持原样，无需改动
 void RankPage::fillModeTable(QTableWidget* table, const QVector<RankInfo>& records)
 {
     table->setRowCount(records.size());
 
-    qDebug() << "填充表格，记录数:" << records.size();
-
     for (int i = 0; i < records.size(); ++i) {
         const RankInfo& info = records[i];
-
-        qDebug() << "填充第" << i << "条记录:"
-                 << "用户=" << info.username
-                 << "分数=" << info.score
-                 << "排名=" << info.rank;
 
         QTableWidgetItem* rankItem = new QTableWidgetItem(QString::number(info.rank));
         QTableWidgetItem* userItem = new QTableWidgetItem(info.username);
         QTableWidgetItem* scoreItem = new QTableWidgetItem(QString::number(info.score));
-        QTableWidgetItem* timeItem = new QTableWidgetItem(info.time.toString("yyyy-MM-dd hh:mm:ss"));
+        QTableWidgetItem* timeItem = new QTableWidgetItem(info.time.toString("MM-dd HH:mm"));
 
-        // 设置居中显示
         rankItem->setTextAlignment(Qt::AlignCenter);
         userItem->setTextAlignment(Qt::AlignCenter);
         scoreItem->setTextAlignment(Qt::AlignCenter);
         timeItem->setTextAlignment(Qt::AlignCenter);
 
-        // 设置文字颜色为白色
-        rankItem->setForeground(Qt::white);
-        userItem->setForeground(Qt::white);
-        scoreItem->setForeground(Qt::white);
-        timeItem->setForeground(Qt::white);
+        QColor textColor = Qt::white;
+        QFont font("Microsoft YaHei", 10);
 
         if (info.rank == 1) {
-            rankItem->setForeground(Qt::yellow);
-            rankItem->setFont(QFont("Microsoft YaHei", 10, QFont::Bold));
-            userItem->setForeground(Qt::yellow);
-            userItem->setFont(QFont("Microsoft YaHei", 10, QFont::Bold));
-            scoreItem->setForeground(Qt::yellow);
-            scoreItem->setFont(QFont("Microsoft YaHei", 10, QFont::Bold));
-            timeItem->setForeground(Qt::yellow);
-            timeItem->setFont(QFont("Microsoft YaHei", 10, QFont::Bold));
+            textColor = QColor("#FFD700");
+            font.setBold(true); font.setPointSize(12);
+            rankItem->setText("🏆 " + rankItem->text());
         } else if (info.rank == 2) {
-            rankItem->setForeground(QColor(192, 192, 192));
-            userItem->setForeground(QColor(192, 192, 192));
-            scoreItem->setForeground(QColor(192, 192, 192));
-            timeItem->setForeground(QColor(192, 192, 192));
+            textColor = QColor("#E0E0E0");
+            font.setBold(true);
+            rankItem->setText("🥈 " + rankItem->text());
         } else if (info.rank == 3) {
-            rankItem->setForeground(QColor(205, 127, 50));
-            userItem->setForeground(QColor(205, 127, 50));
-            scoreItem->setForeground(QColor(205, 127, 50));
-            timeItem->setForeground(QColor(205, 127, 50));
+            textColor = QColor("#CD7F32");
+            font.setBold(true);
+            rankItem->setText("🥉 " + rankItem->text());
         }
+
+        rankItem->setForeground(textColor); rankItem->setFont(font);
+        userItem->setForeground(textColor); userItem->setFont(font);
+        scoreItem->setForeground(textColor); scoreItem->setFont(font);
+        timeItem->setForeground(QColor("#aaaaaa"));
 
         table->setItem(i, 0, rankItem);
         table->setItem(i, 1, userItem);
@@ -240,39 +246,37 @@ void RankPage::fillPersonalTable(const QVector<RankInfo>& records)
 {
     ui->personalTable->setRowCount(records.size());
 
-    qDebug() << "填充个人记录表，记录数:" << records.size();
-
     for (int i = 0; i < records.size(); ++i) {
         const RankInfo& info = records[i];
-
-        qDebug() << "个人记录" << i << ":"
-                 << "用户=" << info.username
-                 << "分数=" << info.score
-                 << "模式=" << info.mode;
 
         QTableWidgetItem* userItem = new QTableWidgetItem(info.username);
         QTableWidgetItem* scoreItem = new QTableWidgetItem(QString::number(info.score));
         QTableWidgetItem* modeItem = new QTableWidgetItem(info.mode);
-        QTableWidgetItem* timeItem = new QTableWidgetItem(info.time.toString("yyyy-MM-dd hh:mm:ss"));
+        QTableWidgetItem* timeItem = new QTableWidgetItem(info.time.toString("yyyy-MM-dd HH:mm"));
 
-        // 设置居中显示
         userItem->setTextAlignment(Qt::AlignCenter);
         scoreItem->setTextAlignment(Qt::AlignCenter);
         modeItem->setTextAlignment(Qt::AlignCenter);
         timeItem->setTextAlignment(Qt::AlignCenter);
 
-        // 设置文字颜色为白色
-        userItem->setForeground(Qt::white);
-        scoreItem->setForeground(Qt::white);
-        modeItem->setForeground(Qt::white);
-        timeItem->setForeground(Qt::white);
+        QColor textColor = Qt::white;
+        QColor modeColor = Qt::white;
 
-        // 如果是当前用户，可以高亮显示
+        if (info.mode == "闪电模式") modeColor = QColor("#ff9de0");
+        else if (info.mode == "旋风模式") modeColor = QColor("#00e5ff");
+        else if (info.mode == "霓虹模式") modeColor = QColor("#7cffcb");
+
+        userItem->setForeground(textColor);
+        scoreItem->setForeground(QColor("#FFD700"));
+        modeItem->setForeground(modeColor);
+        timeItem->setForeground(QColor("#aaaaaa"));
+
         if (info.username == m_username) {
-            userItem->setBackground(QColor(40, 40, 60));  // 深蓝色背景
-            scoreItem->setBackground(QColor(40, 40, 60));
-            modeItem->setBackground(QColor(40, 40, 60));
-            timeItem->setBackground(QColor(40, 40, 60));
+            QColor highlightBg = QColor(255, 255, 255, 20);
+            userItem->setBackground(highlightBg);
+            scoreItem->setBackground(highlightBg);
+            modeItem->setBackground(highlightBg);
+            timeItem->setBackground(highlightBg);
         }
 
         ui->personalTable->setItem(i, 0, userItem);

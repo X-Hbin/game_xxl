@@ -67,6 +67,8 @@ private slots:
     void on_btnHint_clicked();  // 提示 (先占位)
     void on_btnSkill_clicked(); // 技能 (先占位)
 
+
+
 private:
     void clearGridLayout();
     Ui::Mode_1            *ui;

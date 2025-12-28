@@ -16,7 +16,6 @@
   <property name="styleSheet">
    <string notr="true">background-color: rgb(0, 0, 0);</string>
   </property>
-
   <widget class="QWidget" name="topBar" native="true">
    <property name="geometry">
     <rect>
@@ -74,7 +73,6 @@
     </item>
    </layout>
   </widget>
-
   <widget class="QWidget" name="boardWidget" native="true">
    <property name="geometry">
     <rect>
@@ -88,8 +86,6 @@
     <string notr="true">background:#162640;border:2px solid #7cffcb;border-radius:12px;</string>
    </property>
   </widget>
-
-  <!-- 新增：显示当前随机小动物的区域 -->
   <widget class="QWidget" name="animalWidget" native="true">
    <property name="geometry">
     <rect>
@@ -154,7 +150,7 @@
        <string notr="true">color:#aaa;font:10pt 'Microsoft YaHei';</string>
       </property>
       <property name="text">
-       <string>点击棋盘变身</string>
+       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:8pt;&quot;&gt;点击棋盘变身&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
       </property>
       <property name="alignment">
        <set>Qt::AlignCenter</set>
@@ -163,7 +159,6 @@
     </item>
    </layout>
   </widget>
-
   <widget class="QPushButton" name="btnBack">
    <property name="geometry">
     <rect>
@@ -190,7 +185,6 @@
     <string>返回</string>
    </property>
   </widget>
-
   <widget class="QWidget" name="leftSideWidget" native="true">
    <property name="geometry">
     <rect>
@@ -204,7 +198,6 @@
     <property name="spacing">
      <number>20</number>
     </property>
-
     <item>
      <widget class="QPushButton" name="btnUndo">
       <property name="minimumSize">
@@ -231,7 +224,6 @@
       </property>
      </widget>
     </item>
-
     <item>
      <widget class="QPushButton" name="btnHint">
       <property name="minimumSize">
@@ -258,7 +250,6 @@
       </property>
      </widget>
     </item>
-
     <item>
      <widget class="QPushButton" name="btnSkill">
       <property name="minimumSize">
@@ -287,7 +278,6 @@
     </item>
    </layout>
   </widget>
-
  </widget>
  <resources/>
  <connections/>
